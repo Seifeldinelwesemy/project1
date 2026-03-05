@@ -76,7 +76,7 @@ const COLORS = {
   selected: { body: '#7aabf7', legs: '#2355a0', border: '#4080ee', text: '#1a3a7a', bg: '#e8f0ff' },
 };
 
-function SeatIcon({ status, size = 38 }) {
+function SeatIcon({ status, size = 36 }) {
   const c = COLORS[status];
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
@@ -90,32 +90,68 @@ function SeatIcon({ status, size = 38 }) {
   );
 }
 
+// TOP SEAT — fixed width AND height so all boxes are identical size
+// Name is clipped inside the fixed box
+const TOP_W = 76;  // fixed width for every top seat
+const TOP_H = 110; // fixed height for every top seat (icon + id + name area)
+
 function TopSeat({ seat, isSelected, onClick }) {
   const status = isSelected ? 'selected' : seat.status;
   const c = COLORS[status];
   return (
     <div onClick={onClick} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      cursor: 'pointer', width: 56, gap: 2, padding: '4px 3px 5px', borderRadius: 10,
+      cursor: 'pointer',
+      width: TOP_W,
+      height: TOP_H,
+      flexShrink: 0,
+      padding: '5px 4px 5px',
+      borderRadius: 10,
+      boxSizing: 'border-box',
       background: isSelected ? '#ddeeff' : seat.status === 'empty' ? 'transparent' : c.bg,
       border: isSelected ? '2px solid #4080ee' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
       boxShadow: isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
       transition: 'all 0.15s ease',
-      transform: isSelected ? 'translateY(-2px) scale(1.05)' : 'scale(1)',
+      transform: isSelected ? 'translateY(-2px) scale(1.04)' : 'scale(1)',
+      overflow: 'hidden',        // clip anything that overflows the fixed box
+      justifyContent: 'flex-start',
     }}>
-      <SeatIcon status={status} size={36} />
-      <div style={{ fontSize: 10, fontWeight: 700, color: c.text, letterSpacing: 0.5 }}>{seat.id}</div>
-      {seat.name && (
-        <div style={{ fontSize: 10, color: c.text, fontWeight: 600, maxWidth: 52, textAlign: 'center', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {seat.name}
-        </div>
-      )}
-      {seat.status === 'vip' && <div style={{ fontSize: 8, color: '#f0a500' }}>★</div>}
+      <SeatIcon status={status} size={34} />
+      <div style={{ fontSize: 10, fontWeight: 700, color: c.text, letterSpacing: 0.5, whiteSpace: 'nowrap', marginTop: 2 }}>{seat.id}</div>
+      {/* Name area: fixed remaining height, text wraps and is centered */}
+      <div style={{
+        flex: 1,
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        overflow: 'hidden',
+        marginTop: 3,
+      }}>
+        {seat.name && (
+          <div style={{
+            fontSize: 11, color: c.text, fontWeight: 600,
+            textAlign: 'center', lineHeight: 1.25,
+            wordBreak: 'break-word', whiteSpace: 'normal',
+            width: '100%',
+            // max 3 lines, clip after that
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}>
+            {seat.name}{seat.status === 'vip' ? ' ★' : ''}
+          </div>
+        )}
+        {seat.status === 'vip' && !seat.name && (
+          <div style={{ fontSize: 9, color: '#f0a500' }}>★</div>
+        )}
+      </div>
     </div>
   );
 }
 
-// Side seat — single line name beside the icon
+// Side seat — name centered, single line with ellipsis
 function SideSeat({ seat, isSelected, onClick, namePosition }) {
   const status = isSelected ? 'selected' : seat.status;
   const c = COLORS[status];
@@ -129,7 +165,7 @@ function SideSeat({ seat, isSelected, onClick, namePosition }) {
       overflow: 'hidden',
       textOverflow: 'ellipsis',
       whiteSpace: 'nowrap',
-      textAlign: namePosition === 'right' ? 'left' : 'right',
+      textAlign: 'center',
       minWidth: 0,
     }}>
       {seat.name || '·'}
@@ -147,11 +183,11 @@ function SideSeat({ seat, isSelected, onClick, namePosition }) {
       transition: 'all 0.15s ease',
       transform: isSelected ? 'scale(1.03)' : 'scale(1)',
       height: 50,
-      width: 200,
+      width: 220,
     }}>
       {namePosition === 'left' && nameBlock}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-        <SeatIcon status={status} size={36} />
+        <SeatIcon status={status} size={34} />
         <div style={{ fontSize: 10, fontWeight: 700, color: c.text }}>{seat.id}</div>
       </div>
       {namePosition === 'right' && nameBlock}
@@ -188,7 +224,6 @@ function BulkImportModal({ seats, onClose, onImport }) {
     if (!parsed.length) return;
     setNames(parsed); setStep('order');
   };
-
   const onDragStart = (i) => setDragIdx(i);
   const onDragOver = (e, i) => { e.preventDefault(); setOverIdx(i); };
   const onDrop = (i) => {
@@ -196,12 +231,10 @@ function BulkImportModal({ seats, onClose, onImport }) {
     const r = [...names]; const [m] = r.splice(dragIdx, 1); r.splice(i, 0, m);
     setNames(r); setDragIdx(null); setOverIdx(null);
   };
-
   const handleImport = () => {
     onImport(names.slice(0, emptySeats.length).map((name, i) => ({ ...emptySeats[i], name, status: 'assigned' })));
     onClose();
   };
-
   const canAssign = Math.min(names.length, emptySeats.length);
 
   return (
@@ -214,14 +247,12 @@ function BulkImportModal({ seats, onClose, onImport }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#c49a8a' }}>✕</button>
         </div>
-
         <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
           {['Paste Names', 'Set Order', 'Import'].map((label, i) => {
             const sn = step === 'paste' ? 0 : 1;
             return <div key={label} style={{ flex: 1, textAlign: 'center', padding: '6px 0', borderRadius: 8, fontSize: 11, fontWeight: 700, background: i <= sn ? '#fff0ea' : '#f5f0ee', color: i <= sn ? '#e07850' : '#c4b0a8', border: `1.5px solid ${i <= sn ? '#e07850' : '#f0d8cc'}` }}>{i + 1}. {label}</div>;
           })}
         </div>
-
         {step === 'paste' && (<>
           <textarea value={rawText} onChange={e => setRawText(e.target.value)} placeholder={'Ahmed Al-Rashid\nSarah Johnson\n...'} style={{ width: '100%', boxSizing: 'border-box', height: 220, background: '#fff5f0', border: '1.5px solid #f0c0a0', borderRadius: 12, padding: '12px 14px', fontSize: 14, color: '#3a2a2a', outline: 'none', fontFamily: 'inherit', lineHeight: 1.7, resize: 'vertical' }} />
           <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 6, marginBottom: 16 }}>{rawText.split('\n').filter(n => n.trim()).length} names · {emptySeats.length} empty seats</div>
@@ -230,13 +261,11 @@ function BulkImportModal({ seats, onClose, onImport }) {
             <button onClick={handleParse} disabled={!rawText.trim()} style={{ flex: 2, background: rawText.trim() ? '#fff0ea' : '#f5f0ee', border: `1.5px solid ${rawText.trim() ? '#e07850' : '#ddd'}`, borderRadius: 10, padding: '11px 0', color: rawText.trim() ? '#e07850' : '#bbb', fontWeight: 700, fontSize: 13, cursor: rawText.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>Next → Set Order</button>
           </div>
         </>)}
-
         {step === 'order' && (<>
-          <div style={{ fontSize: 12, color: '#a08070', marginBottom: 10, background: '#fff5f0', borderRadius: 8, padding: '8px 12px', border: '1px solid #f0d8cc' }}>💡 Drag to reorder. Top = first empty seat. Max <strong>{emptySeats.length}</strong> will be assigned.</div>
+          <div style={{ fontSize: 12, color: '#a08070', marginBottom: 10, background: '#fff5f0', borderRadius: 8, padding: '8px 12px', border: '1px solid #f0d8cc' }}>💡 Drag to reorder. Top = first empty seat. Max <strong>{emptySeats.length}</strong> assigned.</div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
             <div style={{ flex: 1, fontSize: 10, fontWeight: 700, color: '#c49a8a' }}>SEAT</div>
             <div style={{ flex: 3, fontSize: 10, fontWeight: 700, color: '#c49a8a' }}>GUEST NAME</div>
-            <div style={{ width: 32 }} />
           </div>
           <div style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 16 }}>
             {names.map((name, i) => {
@@ -252,7 +281,7 @@ function BulkImportModal({ seats, onClose, onImport }) {
               );
             })}
           </div>
-          {names.length > emptySeats.length && <div style={{ fontSize: 11, color: '#e07070', marginBottom: 12, background: '#fff5f5', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0c0c0' }}>⚠️ {names.length - emptySeats.length} name(s) won't be assigned.</div>}
+          {names.length > emptySeats.length && <div style={{ fontSize: 11, color: '#e07070', marginBottom: 12, background: '#fff5f5', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0c0c0' }}>⚠️ {names.length - emptySeats.length} won't be assigned.</div>}
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setStep('paste')} style={{ flex: 1, background: '#f5f5f5', border: '1.5px solid #d0c0b8', borderRadius: 10, padding: '11px 0', color: '#806050', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>← Back</button>
             <button onClick={handleImport} style={{ flex: 2, background: '#e8fff4', border: '1.5px solid #4caf82', borderRadius: 10, padding: '11px 0', color: '#1a6a42', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>✓ Assign {canAssign} Seats</button>
@@ -263,7 +292,6 @@ function BulkImportModal({ seats, onClose, onImport }) {
   );
 }
 
-// Floating edit panel that follows the clicked seat vertically
 function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, onCancel, anchorY }) {
   const panelRef = useRef(null);
   const [top, setTop] = useState(0);
@@ -273,7 +301,6 @@ function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, 
     const panelH = panelRef.current.offsetHeight || 200;
     const viewH = window.innerHeight;
     const scrollY = window.scrollY;
-    // Position panel next to the clicked seat, clamped to viewport
     let t = anchorY + scrollY - panelH / 2;
     t = Math.max(scrollY + 12, Math.min(t, scrollY + viewH - panelH - 12));
     setTop(t);
@@ -282,28 +309,10 @@ function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, 
   if (!selData) return null;
 
   return (
-    <div ref={panelRef} style={{
-      position: 'absolute',
-      top,
-      right: 16,
-      width: 230,
-      background: '#fffaf7',
-      borderRadius: 20,
-      border: '2px solid #f0c0a0',
-      padding: 18,
-      boxShadow: '0 8px 36px rgba(200,120,80,0.18)',
-      zIndex: 500,
-      transition: 'top 0.2s ease',
-    }}>
+    <div ref={panelRef} style={{ position: 'absolute', top, right: 16, width: 230, background: '#fffaf7', borderRadius: 20, border: '2px solid #f0c0a0', padding: 18, boxShadow: '0 8px 36px rgba(200,120,80,0.18)', zIndex: 500, transition: 'top 0.2s ease' }}>
       <div style={{ fontSize: 10, letterSpacing: 3, color: '#c49a8a', marginBottom: 12, fontWeight: 700 }}>✏️ EDITING — {selData.id}</div>
-      <input
-        value={name}
-        onChange={e => setName(e.target.value)}
-        onKeyDown={e => e.key === 'Enter' && assign()}
-        placeholder="Guest name…"
-        autoFocus
-        style={{ width: '100%', boxSizing: 'border-box', background: '#fff5f0', border: '1.5px solid #f0c0a0', borderRadius: 10, padding: '10px 14px', color: '#3a2a2a', fontSize: 14, outline: 'none', fontFamily: 'inherit', marginBottom: 12 }}
-      />
+      <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && assign()} placeholder="Guest name…" autoFocus
+        style={{ width: '100%', boxSizing: 'border-box', background: '#fff5f0', border: '1.5px solid #f0c0a0', borderRadius: 10, padding: '10px 14px', color: '#3a2a2a', fontSize: 14, outline: 'none', fontFamily: 'inherit', marginBottom: 12 }} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {[
           { label: '✓ Assign', fn: assign,    bg: '#e8fff4', border: '#4caf82', color: '#1a6a42' },
@@ -332,7 +341,6 @@ export default function SeatingPlan() {
   const [future, setFuture] = useState([]);
   const isSaving = useRef(false);
   const isCleared = useRef(false);
-  const containerRef = useRef(null);
 
   useEffect(() => {
     loadSeats().then(s => { setSeats(s); setLoaded(true); });
@@ -385,7 +393,6 @@ export default function SeatingPlan() {
   const select = (id, event) => {
     if (sel === id) { setSel(null); setName(''); return; }
     setSel(id); setName(getSeat(id)?.name || '');
-    // Capture click Y position relative to the page for floating panel
     if (event) {
       const rect = event.currentTarget.getBoundingClientRect();
       setAnchorY(rect.top + rect.height / 2);
@@ -417,43 +424,28 @@ export default function SeatingPlan() {
   );
 
   return (
-    <div ref={containerRef} style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#fdf6f0 0%,#fdeee4 50%,#fdf0f8 100%)', fontFamily: "'Segoe UI',sans-serif", color: '#3a2a2a', padding: '28px 16px 60px', position: 'relative' }}>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#fdf6f0 0%,#fdeee4 50%,#fdf0f8 100%)', fontFamily: "'Segoe UI',sans-serif", color: '#3a2a2a', padding: '28px 16px 60px', position: 'relative' }}>
 
       {showConfirm && <ConfirmDialog message="This will permanently clear all seat assignments." onConfirm={confirmClearAll} onCancel={() => setShowConfirm(false)} />}
       {showBulk && <BulkImportModal seats={seats} onClose={() => setShowBulk(false)} onImport={handleBulkImport} />}
-
-      {/* Floating editor — positioned absolutely, follows clicked seat */}
-      <FloatingEditor
-        selData={selData}
-        name={name}
-        setName={setName}
-        assign={assign}
-        toggleVIP={toggleVIP}
-        clearSeat={clearSeat}
-        onCancel={() => { setSel(null); setName(''); }}
-        anchorY={anchorY}
-      />
+      <FloatingEditor selData={selData} name={name} setName={setName} assign={assign} toggleVIP={toggleVIP} clearSeat={clearSeat} onCancel={() => { setSel(null); setName(''); }} anchorY={anchorY} />
 
       {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+      <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <div style={{ fontSize: 11, letterSpacing: 6, color: '#c49a8a', textTransform: 'uppercase', marginBottom: 6 }}>Event Seating System</div>
-        <h1 style={{ margin: 0, fontSize: 36, fontWeight: 900, letterSpacing: '-1px', background: 'linear-gradient(90deg,#e07850,#d050a0,#6060e0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SEAT PLANNER</h1>
+        <h1 style={{ margin: 0, fontSize: 34, fontWeight: 900, letterSpacing: '-1px', background: 'linear-gradient(90deg,#e07850,#d050a0,#6060e0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SEAT PLANNER</h1>
         <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 6, letterSpacing: 3 }}>21 TOP · 15 LEFT · 15 RIGHT · {seats.length} SEATS</div>
         <div style={{ marginTop: 6, fontSize: 11, letterSpacing: 2, fontWeight: 600, color: saveStatus === 'saved' ? '#4caf82' : saveStatus === 'saving' ? '#f0a500' : '#e05050' }}>
           {saveStatus === 'saved' ? '✓ ALL CHANGES SAVED' : saveStatus === 'saving' ? '● SAVING...' : '✕ SAVE ERROR'}
         </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
-          <button onClick={undo} disabled={!history.length} style={{ background: history.length ? '#eeeeff' : '#f5f5f5', border: `1.5px solid ${history.length ? '#6060e0' : '#ddd'}`, borderRadius: 10, padding: '7px 18px', color: history.length ? '#4040c0' : '#bbb', fontWeight: 700, fontSize: 12, cursor: history.length ? 'pointer' : 'default', fontFamily: 'inherit' }}>
-            ↩ Undo {history.length > 0 ? `(${history.length})` : ''}
-          </button>
-          <button onClick={redo} disabled={!future.length} style={{ background: future.length ? '#eeeeff' : '#f5f5f5', border: `1.5px solid ${future.length ? '#6060e0' : '#ddd'}`, borderRadius: 10, padding: '7px 18px', color: future.length ? '#4040c0' : '#bbb', fontWeight: 700, fontSize: 12, cursor: future.length ? 'pointer' : 'default', fontFamily: 'inherit' }}>
-            Redo {future.length > 0 ? `(${future.length})` : ''} ↪
-          </button>
+          <button onClick={undo} disabled={!history.length} style={{ background: history.length ? '#eeeeff' : '#f5f5f5', border: `1.5px solid ${history.length ? '#6060e0' : '#ddd'}`, borderRadius: 10, padding: '7px 18px', color: history.length ? '#4040c0' : '#bbb', fontWeight: 700, fontSize: 12, cursor: history.length ? 'pointer' : 'default', fontFamily: 'inherit' }}>↩ Undo {history.length > 0 ? `(${history.length})` : ''}</button>
+          <button onClick={redo} disabled={!future.length} style={{ background: future.length ? '#eeeeff' : '#f5f5f5', border: `1.5px solid ${future.length ? '#6060e0' : '#ddd'}`, borderRadius: 10, padding: '7px 18px', color: future.length ? '#4040c0' : '#bbb', fontWeight: 700, fontSize: 12, cursor: future.length ? 'pointer' : 'default', fontFamily: 'inherit' }}>Redo {future.length > 0 ? `(${future.length})` : ''} ↪</button>
         </div>
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 28, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
         {[
           { label: 'Total',    val: seats.length,  color: '#6060e0', bg: '#eeeeff' },
           { label: 'Assigned', val: assigned,       color: '#3a9a6a', bg: '#e8fff4' },
@@ -467,23 +459,28 @@ export default function SeatingPlan() {
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
 
         {/* Seating Canvas */}
-        <div style={{ background: '#fffaf7', borderRadius: 24, border: '1.5px solid #f0d8cc', padding: '20px 16px 16px', boxShadow: '0 8px 40px rgba(200,120,80,0.10)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, gap: 10 }}>
+        <div style={{ background: '#fffaf7', borderRadius: 24, border: '1.5px solid #f0d8cc', padding: '18px 14px 14px', boxShadow: '0 8px 40px rgba(200,120,80,0.10)' }}>
+
+          {/* Stage */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, gap: 10 }}>
             <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg,transparent,#e0a090)', borderRadius: 2 }} />
-            <div style={{ fontSize: 11, letterSpacing: 4, color: '#e07850', border: '2px solid #f0c0a0', padding: '5px 20px', borderRadius: 8, background: '#fff5f0', fontWeight: 700 }}>▼ STAGE / FRONT ▼</div>
+            <div style={{ fontSize: 11, letterSpacing: 4, color: '#e07850', border: '2px solid #f0c0a0', padding: '5px 20px', borderRadius: 8, background: '#fff5f0', fontWeight: 700, whiteSpace: 'nowrap' }}>▼ STAGE / FRONT ▼</div>
             <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg,#e0a090,transparent)', borderRadius: 2 }} />
           </div>
 
-          {/* Top row */}
-          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+          {/* Top row — all seats same fixed size, overflow hidden */}
+          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
             {topSeats.map(s => <TopSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={(e) => select(s.id, e)} />)}
           </div>
 
+          {/* Gap between top row and side columns */}
+          <div style={{ height: 20 }} />
+
           {/* Left + Right */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {leftSeats.map(s => <SideSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={(e) => select(s.id, e)} namePosition="right" />)}
             </div>
@@ -502,18 +499,17 @@ export default function SeatingPlan() {
           </div>
         </div>
 
-        {/* Side Panel — bulk import + tabs only, no editor (editor is floating) */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 240 }}>
+        {/* Side panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 240, flexShrink: 0 }}>
 
           <button onClick={() => setShowBulk(true)} style={{ width: '100%', background: 'linear-gradient(90deg,#fff0ea,#fde8ff)', border: '1.5px solid #e07850', borderRadius: 14, padding: '12px 0', color: '#e07850', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 1, boxShadow: '0 4px 16px rgba(224,120,80,0.12)' }}>
             📋 BULK IMPORT NAMES
             <div style={{ fontSize: 10, color: '#c49a8a', fontWeight: 500, marginTop: 2 }}>{emptyCount} seats available</div>
           </button>
 
-          {/* Hint when no seat selected */}
           {!selData && (
             <div style={{ background: '#fffaf7', borderRadius: 16, border: '1.5px solid #f0d8cc', padding: '14px 16px', color: '#c4a898', fontSize: 13, lineHeight: 1.7 }}>
-              👆 Click any seat to edit it. The edit panel will float next to the seat you click.
+              👆 Click any seat to edit it.
             </div>
           )}
 
