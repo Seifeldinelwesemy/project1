@@ -1,18 +1,16 @@
-import React from 'react';
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-const BIN_ID = '69a93f18d0ea881f40f0ef6b';
-const API_KEY = '$2a$10$1CESx41NlQsqHGriap/fquvmqNnmqIiHolXObZdYfJz2tdq2IZ5bS';
-const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const SUPABASE_URL = 'https://ogbeczupngfuevmqdjdz.supabase.co';
+const SUPABASE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9nYmVjenVwbmdmdWV2bXFkamR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI2OTQyMDksImV4cCI6MjA4ODI3MDIwOX0.A4Hylx7B0qBDs0TWKCmC8ijUp71tzVrQ8fHGfLV7_2I';
+const HEADERS = {
+  'Content-Type': 'application/json',
+  apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+};
 
 const TOP = 21,
   SIDE = 15;
-const SEAT_W = 44,
-  SEAT_H = 40,
-  GAP_X = 8,
-  GAP_Y = 10;
-const STEP_X = SEAT_W + GAP_X,
-  STEP_Y = SEAT_H + GAP_Y;
 
 function buildSeats() {
   const seats = [];
@@ -43,32 +41,181 @@ function buildSeats() {
   return seats;
 }
 
-const STATUS_STYLE = {
-  empty: { bg: '#1e2235', border: '#3d4466', text: '#6b7db3' },
-  assigned: { bg: '#0d2e1a', border: '#22c55e', text: '#4ade80' },
-  vip: { bg: '#2e1a00', border: '#f59e0b', text: '#fbbf24' },
-  selected: { bg: '#1a1a3e', border: '#818cf8', text: '#a5b4fc' },
-};
-
 async function loadSeats() {
   try {
-    const res = await fetch(API_URL + '/latest', {
-      headers: { 'X-Master-Key': API_KEY },
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/seats?select=*`, {
+      headers: HEADERS,
     });
     const data = await res.json();
-    const seats = data?.record?.seats;
-    return Array.isArray(seats) && seats.length > 0 ? seats : buildSeats();
-  } catch (e) {
+    if (Array.isArray(data) && data.length === 51) {
+      return data.sort((a, b) => {
+        const rowOrder = { top: 0, left: 1, right: 2 };
+        if (rowOrder[a.row] !== rowOrder[b.row])
+          return rowOrder[a.row] - rowOrder[b.row];
+        return a.col - b.col;
+      });
+    }
+    await fetch(`${SUPABASE_URL}/rest/v1/seats`, {
+      method: 'POST',
+      headers: { ...HEADERS, Prefer: 'ignore-duplicates' },
+      body: JSON.stringify(buildSeats()),
+    });
+    return buildSeats();
+  } catch {
     return buildSeats();
   }
 }
 
-async function saveSeats(seats) {
-  await fetch(API_URL, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Master-Key': API_KEY },
-    body: JSON.stringify({ seats }),
+async function saveSeat(seat) {
+  await fetch(`${SUPABASE_URL}/rest/v1/seats?id=eq.${seat.id}`, {
+    method: 'PATCH',
+    headers: { ...HEADERS, Prefer: 'return=minimal' },
+    body: JSON.stringify({ name: seat.name, status: seat.status }),
   });
+}
+
+async function clearAllSeats() {
+  await fetch(`${SUPABASE_URL}/rest/v1/seats`, {
+    method: 'DELETE',
+    headers: HEADERS,
+  });
+  await fetch(`${SUPABASE_URL}/rest/v1/seats`, {
+    method: 'POST',
+    headers: { ...HEADERS, Prefer: 'ignore-duplicates' },
+    body: JSON.stringify(buildSeats()),
+  });
+}
+
+const COLORS = {
+  empty: {
+    body: '#e2c9c9',
+    legs: '#7a5c5c',
+    border: '#c9a8a8',
+    text: '#9e7c7c',
+    bg: 'transparent',
+  },
+  assigned: {
+    body: '#7ec8a4',
+    legs: '#3a7a5c',
+    border: '#4caf82',
+    text: '#1a5c3c',
+    bg: '#eafff4',
+  },
+  vip: {
+    body: '#f7c948',
+    legs: '#b8860b',
+    border: '#f0a500',
+    text: '#7a4f00',
+    bg: '#fff8e1',
+  },
+  selected: {
+    body: '#7aabf7',
+    legs: '#2355a0',
+    border: '#4080ee',
+    text: '#1a3a7a',
+    bg: '#e8f0ff',
+  },
+};
+
+function SeatIcon({ status, size = 44 }) {
+  const c = COLORS[status];
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" fill="none">
+      <rect
+        x="10"
+        y="4"
+        width="28"
+        height="22"
+        rx="6"
+        fill={c.body}
+        stroke={c.border}
+        strokeWidth="1.5"
+      />
+      <rect
+        x="8"
+        y="24"
+        width="32"
+        height="12"
+        rx="5"
+        fill={c.body}
+        stroke={c.border}
+        strokeWidth="1.5"
+      />
+      <rect x="11" y="36" width="5" height="8" rx="2.5" fill={c.legs} />
+      <rect x="32" y="36" width="5" height="8" rx="2.5" fill={c.legs} />
+      <rect x="5" y="22" width="5" height="10" rx="2.5" fill={c.legs} />
+      <rect x="38" y="22" width="5" height="10" rx="2.5" fill={c.legs} />
+    </svg>
+  );
+}
+
+function Seat({ seat, isSelected, onClick }) {
+  const status = isSelected ? 'selected' : seat.status;
+  const c = COLORS[status];
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        cursor: 'pointer',
+        width: 70,
+        gap: 2,
+        padding: '6px 4px 8px',
+        borderRadius: 12,
+        background: isSelected
+          ? '#ddeeff'
+          : seat.status === 'empty'
+          ? 'transparent'
+          : c.bg,
+        border: isSelected
+          ? '2px solid #4080ee'
+          : seat.status === 'empty'
+          ? '2px solid transparent'
+          : `2px solid ${c.border}`,
+        boxShadow: isSelected
+          ? '0 4px 16px rgba(64,128,238,0.25)'
+          : seat.status !== 'empty'
+          ? '0 2px 8px rgba(0,0,0,0.08)'
+          : 'none',
+        transition: 'all 0.15s ease',
+        transform: isSelected ? 'translateY(-3px) scale(1.05)' : 'scale(1)',
+      }}
+    >
+      <SeatIcon status={status} size={44} />
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 700,
+          color: c.text,
+          letterSpacing: 0.5,
+          marginTop: 1,
+        }}
+      >
+        {seat.id}
+      </div>
+      {seat.name && (
+        <div
+          style={{
+            fontSize: 14,
+            color: c.text,
+            fontWeight: 600,
+            maxWidth: 76,
+            textAlign: 'center',
+            lineHeight: 1.3,
+            wordBreak: 'break-word',
+            whiteSpace: 'normal',
+          }}
+        >
+          {seat.name}
+        </div>
+      )}
+      {seat.status === 'vip' && (
+        <div style={{ fontSize: 9, color: '#f0a500' }}>★ VIP</div>
+      )}
+    </div>
+  );
 }
 
 export default function SeatingPlan() {
@@ -78,42 +225,37 @@ export default function SeatingPlan() {
   const [tab, setTab] = useState('plan');
   const [loaded, setLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState('saved');
-  const saveTimer = useRef(null);
+  const isSaving = useRef(false);
 
   useEffect(() => {
     loadSeats().then((s) => {
       setSeats(s);
       setLoaded(true);
     });
-    const poll = setInterval(() => loadSeats().then((s) => setSeats(s)), 10000);
+    const poll = setInterval(() => {
+      if (!isSaving.current) loadSeats().then((s) => setSeats(s));
+    }, 20000);
     return () => clearInterval(poll);
   }, []);
 
-  const persistSeats = (updater) => {
-    setSeats((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      setSaveStatus('saving');
-      clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => {
-        saveSeats(next)
-          .then(() => setSaveStatus('saved'))
-          .catch(() => setSaveStatus('error'));
-      }, 500);
-      return next;
-    });
+  const updateSeat = (updatedSeat) => {
+    setSeats((prev) =>
+      prev.map((s) => (s.id === updatedSeat.id ? updatedSeat : s))
+    );
+    setSaveStatus('saving');
+    isSaving.current = true;
+    saveSeat(updatedSeat)
+      .then(() => {
+        setSaveStatus('saved');
+        isSaving.current = false;
+      })
+      .catch(() => {
+        setSaveStatus('error');
+        isSaving.current = false;
+      });
   };
 
-  const getSeatData = (id) => seats.find((s) => s.id === id);
-  const getPos = (s) => {
-    if (s.row === 'top') return { x: s.col * STEP_X, y: 0 };
-    if (s.row === 'left') return { x: 0, y: (s.col + 1) * STEP_Y };
-    if (s.row === 'right')
-      return { x: (TOP - 1) * STEP_X, y: (s.col + 1) * STEP_Y };
-  };
-
-  const svgW = (TOP - 1) * STEP_X + SEAT_W;
-  const svgH = (SIDE + 1) * STEP_Y + SEAT_H;
-
+  const getSeat = (id) => seats.find((s) => s.id === id);
   const select = (id) => {
     if (sel === id) {
       setSel(null);
@@ -121,79 +263,76 @@ export default function SeatingPlan() {
       return;
     }
     setSel(id);
-    setName(getSeatData(id)?.name || '');
+    setName(getSeat(id)?.name || '');
   };
 
   const assign = () => {
     if (!sel) return;
-    persistSeats((p) =>
-      p.map((s) =>
-        s.id === sel
-          ? {
-              ...s,
-              name,
-              status: name
-                ? s.status === 'vip'
-                  ? 'vip'
-                  : 'assigned'
-                : 'empty',
-            }
-          : s
-      )
-    );
+    const seat = getSeat(sel);
+    updateSeat({
+      ...seat,
+      name,
+      status: name ? (seat.status === 'vip' ? 'vip' : 'assigned') : 'empty',
+    });
   };
 
   const toggleVIP = () => {
     if (!sel) return;
-    persistSeats((p) =>
-      p.map((s) =>
-        s.id === sel
-          ? {
-              ...s,
-              status:
-                s.status === 'vip' ? (s.name ? 'assigned' : 'empty') : 'vip',
-            }
-          : s
-      )
-    );
+    const seat = getSeat(sel);
+    updateSeat({
+      ...seat,
+      status:
+        seat.status === 'vip' ? (seat.name ? 'assigned' : 'empty') : 'vip',
+    });
   };
 
   const clearSeat = () => {
     if (!sel) return;
-    persistSeats((p) =>
-      p.map((s) => (s.id === sel ? { ...s, name: '', status: 'empty' } : s))
-    );
+    updateSeat({ ...getSeat(sel), name: '', status: 'empty' });
     setName('');
     setSel(null);
   };
 
   const clearAll = () => {
-    persistSeats(buildSeats());
+    setSaveStatus('saving');
+    isSaving.current = true;
+    clearAllSeats()
+      .then(() => {
+        setSeats(buildSeats());
+        setSaveStatus('saved');
+        isSaving.current = false;
+      })
+      .catch(() => {
+        setSaveStatus('error');
+        isSaving.current = false;
+      });
     setSel(null);
     setName('');
   };
 
+  const topSeats = seats.filter((s) => s.row === 'top');
+  const leftSeats = seats.filter((s) => s.row === 'left');
+  const rightSeats = seats.filter((s) => s.row === 'right');
   const assigned = seats.filter((s) => s.name).length;
   const vips = seats.filter((s) => s.status === 'vip').length;
-  const empty = seats.length - assigned;
-  const selData = sel ? getSeatData(sel) : null;
+  const selData = sel ? getSeat(sel) : null;
 
   if (!loaded)
     return (
       <div
         style={{
           minHeight: '100vh',
-          background: '#0b0d17',
+          background: '#fdf6f0',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontFamily: "'Courier New', monospace",
-          color: '#4b5680',
+          fontFamily: 'Georgia,serif',
+          color: '#b08070',
+          fontSize: 18,
           letterSpacing: 4,
-          fontSize: 12,
         }}
       >
-        LOADING...
+        Loading seats...
       </div>
     );
 
@@ -201,21 +340,19 @@ export default function SeatingPlan() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#0b0d17',
-        fontFamily: "'Courier New', monospace",
-        color: '#c9d1f5',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        padding: '28px 16px 40px',
+        background:
+          'linear-gradient(135deg,#fdf6f0 0%,#fdeee4 50%,#fdf0f8 100%)',
+        fontFamily: "'Segoe UI',sans-serif",
+        color: '#3a2a2a',
+        padding: '28px 16px 60px',
       }}
     >
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
+      <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div
           style={{
             fontSize: 11,
-            letterSpacing: 8,
-            color: '#4b5680',
+            letterSpacing: 6,
+            color: '#c49a8a',
             textTransform: 'uppercase',
             marginBottom: 6,
           }}
@@ -225,10 +362,10 @@ export default function SeatingPlan() {
         <h1
           style={{
             margin: 0,
-            fontSize: 32,
+            fontSize: 36,
             fontWeight: 900,
             letterSpacing: '-1px',
-            background: 'linear-gradient(90deg, #818cf8, #38bdf8, #818cf8)',
+            background: 'linear-gradient(90deg,#e07850,#d050a0,#6060e0)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}
@@ -238,8 +375,8 @@ export default function SeatingPlan() {
         <div
           style={{
             fontSize: 11,
-            color: '#4b5680',
-            marginTop: 4,
+            color: '#c49a8a',
+            marginTop: 6,
             letterSpacing: 3,
           }}
         >
@@ -247,15 +384,16 @@ export default function SeatingPlan() {
         </div>
         <div
           style={{
-            marginTop: 8,
-            fontSize: 10,
+            marginTop: 6,
+            fontSize: 11,
             letterSpacing: 2,
+            fontWeight: 600,
             color:
               saveStatus === 'saved'
-                ? '#22c55e'
+                ? '#4caf82'
                 : saveStatus === 'saving'
-                ? '#f59e0b'
-                : '#f87171',
+                ? '#f0a500'
+                : '#e05050',
           }}
         >
           {saveStatus === 'saved'
@@ -269,47 +407,52 @@ export default function SeatingPlan() {
       <div
         style={{
           display: 'flex',
-          gap: 2,
-          marginBottom: 28,
-          borderRadius: 12,
-          overflow: 'hidden',
-          border: '1px solid #252a45',
-          background: '#111525',
+          justifyContent: 'center',
+          gap: 12,
+          marginBottom: 32,
+          flexWrap: 'wrap',
         }}
       >
         {[
-          { label: 'TOTAL', val: seats.length, color: '#818cf8' },
-          { label: 'ASSIGNED', val: assigned, color: '#4ade80' },
-          { label: 'VIP', val: vips, color: '#fbbf24' },
-          { label: 'EMPTY', val: empty, color: '#475069' },
+          {
+            label: 'Total',
+            val: seats.length,
+            color: '#6060e0',
+            bg: '#eeeeff',
+          },
+          { label: 'Assigned', val: assigned, color: '#3a9a6a', bg: '#e8fff4' },
+          { label: 'VIP', val: vips, color: '#c07800', bg: '#fff8e0' },
+          {
+            label: 'Empty',
+            val: seats.length - assigned,
+            color: '#b08070',
+            bg: '#fff0ea',
+          },
         ].map((s) => (
           <div
             key={s.label}
             style={{
-              padding: '12px 22px',
+              padding: '10px 24px',
+              borderRadius: 16,
+              background: s.bg,
+              border: `1.5px solid ${s.color}22`,
               textAlign: 'center',
-              borderRight: '1px solid #252a45',
+              minWidth: 70,
             }}
           >
-            <div
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: s.color,
-                lineHeight: 1,
-              }}
-            >
+            <div style={{ fontSize: 24, fontWeight: 800, color: s.color }}>
               {s.val}
             </div>
             <div
               style={{
-                fontSize: 9,
-                letterSpacing: 2,
-                color: '#4b5680',
-                marginTop: 3,
+                fontSize: 10,
+                letterSpacing: 1,
+                color: s.color,
+                opacity: 0.7,
+                marginTop: 2,
               }}
             >
-              {s.label}
+              {s.label.toUpperCase()}
             </div>
           </div>
         ))}
@@ -318,7 +461,7 @@ export default function SeatingPlan() {
       <div
         style={{
           display: 'flex',
-          gap: 24,
+          gap: 28,
           alignItems: 'flex-start',
           flexWrap: 'wrap',
           justifyContent: 'center',
@@ -326,10 +469,11 @@ export default function SeatingPlan() {
       >
         <div
           style={{
-            background: '#111525',
-            borderRadius: 16,
-            border: '1px solid #252a45',
-            padding: '20px 20px 16px',
+            background: '#fffaf7',
+            borderRadius: 24,
+            border: '1.5px solid #f0d8cc',
+            padding: '24px 20px 20px',
+            boxShadow: '0 8px 40px rgba(200,120,80,0.10)',
           }}
         >
           <div
@@ -337,25 +481,28 @@ export default function SeatingPlan() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              marginBottom: 18,
-              gap: 10,
+              marginBottom: 24,
+              gap: 12,
             }}
           >
             <div
               style={{
                 flex: 1,
-                height: 1,
-                background: 'linear-gradient(90deg, transparent, #3d4466)',
+                height: 2,
+                background: 'linear-gradient(90deg,transparent,#e0a090)',
+                borderRadius: 2,
               }}
             />
             <div
               style={{
-                fontSize: 10,
+                fontSize: 11,
                 letterSpacing: 4,
-                color: '#818cf8',
-                border: '1px solid #3d4466',
-                padding: '5px 20px',
-                borderRadius: 4,
+                color: '#e07850',
+                border: '2px solid #f0c0a0',
+                padding: '6px 24px',
+                borderRadius: 8,
+                background: '#fff5f0',
+                fontWeight: 700,
               }}
             >
               ▼ STAGE / FRONT ▼
@@ -363,144 +510,96 @@ export default function SeatingPlan() {
             <div
               style={{
                 flex: 1,
-                height: 1,
-                background: 'linear-gradient(90deg, #3d4466, transparent)',
+                height: 2,
+                background: 'linear-gradient(90deg,#e0a090,transparent)',
+                borderRadius: 2,
               }}
             />
           </div>
-          <div style={{ overflowX: 'auto' }}>
-            <svg width={svgW} height={svgH} style={{ display: 'block' }}>
-              <line
-                x1={SEAT_W / 2}
-                y1={STEP_Y}
-                x2={SEAT_W / 2}
-                y2={svgH}
-                stroke="#252a45"
-                strokeWidth="1"
-                strokeDasharray="4,4"
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 8,
+              justifyContent: 'center',
+              marginBottom: 16,
+              flexWrap: 'wrap',
+            }}
+          >
+            {topSeats.map((s) => (
+              <Seat
+                key={s.id}
+                seat={s}
+                isSelected={sel === s.id}
+                onClick={() => select(s.id)}
               />
-              <line
-                x1={svgW - SEAT_W / 2}
-                y1={STEP_Y}
-                x2={svgW - SEAT_W / 2}
-                y2={svgH}
-                stroke="#252a45"
-                strokeWidth="1"
-                strokeDasharray="4,4"
-              />
-              {seats.map((s) => {
-                const pos = getPos(s);
-                const isSel = sel === s.id;
-                const st = isSel
-                  ? STATUS_STYLE.selected
-                  : STATUS_STYLE[s.status];
-                return (
-                  <g
-                    key={s.id}
-                    transform={`translate(${pos.x},${pos.y})`}
-                    onClick={() => select(s.id)}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {isSel && (
-                      <rect
-                        x={-3}
-                        y={-3}
-                        width={SEAT_W + 6}
-                        height={SEAT_H + 6}
-                        rx={9}
-                        fill="#818cf8"
-                        opacity={0.12}
-                      />
-                    )}
-                    <rect
-                      x={0}
-                      y={0}
-                      width={SEAT_W}
-                      height={SEAT_H}
-                      rx={6}
-                      fill={st.bg}
-                      stroke={st.border}
-                      strokeWidth={isSel ? 2 : 1.5}
-                    />
-                    <rect
-                      x={4}
-                      y={2}
-                      width={SEAT_W - 8}
-                      height={6}
-                      rx={3}
-                      fill={st.border}
-                      opacity={0.5}
-                    />
-                    <text
-                      x={SEAT_W / 2}
-                      y={s.name ? 21 : 26}
-                      textAnchor="middle"
-                      fontSize={s.name ? 9 : 10}
-                      fontWeight={700}
-                      fill={st.text}
-                      fontFamily="'Courier New', monospace"
-                    >
-                      {s.id}
-                    </text>
-                    {s.name && (
-                      <text
-                        x={SEAT_W / 2}
-                        y={34}
-                        textAnchor="middle"
-                        fontSize={7.5}
-                        fill={st.text}
-                        opacity={0.85}
-                        fontFamily="'Courier New', monospace"
-                      >
-                        {s.name.length > 6 ? s.name.slice(0, 5) + '…' : s.name}
-                      </text>
-                    )}
-                    {s.status === 'vip' && (
-                      <text
-                        x={SEAT_W - 7}
-                        y={11}
-                        fontSize={9}
-                        textAnchor="middle"
-                      >
-                        ★
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-            </svg>
+            ))}
           </div>
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              gap: 40,
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {leftSeats.map((s) => (
+                <Seat
+                  key={s.id}
+                  seat={s}
+                  isSelected={sel === s.id}
+                  onClick={() => select(s.id)}
+                />
+              ))}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {rightSeats.map((s) => (
+                <Seat
+                  key={s.id}
+                  seat={s}
+                  isSelected={sel === s.id}
+                  onClick={() => select(s.id)}
+                />
+              ))}
+            </div>
+          </div>
+
           <div
             style={{
               display: 'flex',
               gap: 16,
               justifyContent: 'center',
-              marginTop: 16,
+              marginTop: 24,
               flexWrap: 'wrap',
             }}
           >
-            {Object.entries(STATUS_STYLE).map(([k, v]) => (
+            {[
+              { label: 'Empty', color: '#c9a8a8' },
+              { label: 'Assigned', color: '#4caf82' },
+              { label: 'VIP', color: '#f0a500' },
+              { label: 'Selected', color: '#4080ee' },
+            ].map((l) => (
               <div
-                key={k}
+                key={l.label}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 5,
-                  fontSize: 10,
-                  color: '#4b5680',
-                  letterSpacing: 1,
+                  gap: 6,
+                  fontSize: 11,
+                  color: '#a08070',
                 }}
               >
                 <div
                   style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 3,
-                    background: v.bg,
-                    border: `1.5px solid ${v.border}`,
+                    width: 12,
+                    height: 12,
+                    borderRadius: 4,
+                    background: l.color,
+                    opacity: 0.8,
                   }}
                 />
-                {k.toUpperCase()}
+                {l.label}
               </div>
             ))}
           </div>
@@ -511,26 +610,27 @@ export default function SeatingPlan() {
             display: 'flex',
             flexDirection: 'column',
             gap: 14,
-            width: 230,
+            width: 240,
           }}
         >
           <div
             style={{
-              background: '#111525',
-              borderRadius: 14,
-              border: '1px solid #252a45',
-              padding: 18,
+              background: '#fffaf7',
+              borderRadius: 20,
+              border: '1.5px solid #f0d8cc',
+              padding: 20,
             }}
           >
             <div
               style={{
-                fontSize: 9,
+                fontSize: 10,
                 letterSpacing: 3,
-                color: '#4b5680',
-                marginBottom: 12,
+                color: '#c49a8a',
+                marginBottom: 14,
+                fontWeight: 700,
               }}
             >
-              {selData ? `EDITING — ${selData.id}` : 'SELECT A SEAT'}
+              {selData ? `✏️ EDITING — ${selData.id}` : '👆 SELECT A SEAT'}
             </div>
             {selData ? (
               <>
@@ -542,55 +642,55 @@ export default function SeatingPlan() {
                   style={{
                     width: '100%',
                     boxSizing: 'border-box',
-                    background: '#0b0d17',
-                    border: '1px solid #3d4466',
-                    borderRadius: 8,
-                    padding: '9px 12px',
-                    color: '#c9d1f5',
-                    fontSize: 13,
+                    background: '#fff5f0',
+                    border: '1.5px solid #f0c0a0',
+                    borderRadius: 10,
+                    padding: '10px 14px',
+                    color: '#3a2a2a',
+                    fontSize: 14,
                     outline: 'none',
-                    fontFamily: "'Courier New', monospace",
-                    marginBottom: 10,
+                    fontFamily: 'inherit',
+                    marginBottom: 12,
                   }}
                 />
                 <div
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '1fr 1fr',
-                    gap: 7,
+                    gap: 8,
                   }}
                 >
                   {[
                     {
-                      label: 'ASSIGN',
+                      label: '✓ Assign',
                       fn: assign,
-                      bg: '#1e2e5e',
-                      border: '#818cf8',
-                      color: '#a5b4fc',
+                      bg: '#e8fff4',
+                      border: '#4caf82',
+                      color: '#1a6a42',
                     },
                     {
                       label: '★ VIP',
                       fn: toggleVIP,
-                      bg: '#2e1f00',
-                      border: '#f59e0b',
-                      color: '#fbbf24',
+                      bg: '#fff8e0',
+                      border: '#f0a500',
+                      color: '#7a5000',
                     },
                     {
-                      label: 'CLEAR',
+                      label: '✕ Clear',
                       fn: clearSeat,
-                      bg: '#1a0d0d',
-                      border: '#f87171',
-                      color: '#fca5a5',
+                      bg: '#fff0f0',
+                      border: '#e07070',
+                      color: '#a02020',
                     },
                     {
-                      label: 'CANCEL',
+                      label: 'Cancel',
                       fn: () => {
                         setSel(null);
                         setName('');
                       },
-                      bg: '#15171f',
-                      border: '#3d4466',
-                      color: '#6b7db3',
+                      bg: '#f5f5f5',
+                      border: '#d0c0b8',
+                      color: '#806050',
                     },
                   ].map((b) => (
                     <button
@@ -598,15 +698,14 @@ export default function SeatingPlan() {
                       onClick={b.fn}
                       style={{
                         background: b.bg,
-                        border: `1px solid ${b.border}`,
-                        borderRadius: 8,
-                        padding: '9px 0',
+                        border: `1.5px solid ${b.border}`,
+                        borderRadius: 10,
+                        padding: '10px 0',
                         color: b.color,
                         fontWeight: 700,
-                        fontSize: 11,
-                        letterSpacing: 1,
+                        fontSize: 12,
                         cursor: 'pointer',
-                        fontFamily: "'Courier New', monospace",
+                        fontFamily: 'inherit',
                       }}
                     >
                       {b.label}
@@ -615,30 +714,30 @@ export default function SeatingPlan() {
                 </div>
               </>
             ) : (
-              <div style={{ color: '#3d4466', fontSize: 12, lineHeight: 1.6 }}>
-                Click any chair on the plan to assign a guest, mark as VIP, or
-                clear.
+              <div style={{ color: '#c4a898', fontSize: 13, lineHeight: 1.7 }}>
+                Click any seat to assign a guest, mark as VIP, or clear.
               </div>
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div style={{ display: 'flex', gap: 6 }}>
             {['plan', 'guests'].map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
                 style={{
                   flex: 1,
-                  background: tab === t ? '#1e2e5e' : '#111525',
-                  border: `1px solid ${tab === t ? '#818cf8' : '#252a45'}`,
-                  borderRadius: 8,
-                  padding: '8px 0',
-                  color: tab === t ? '#a5b4fc' : '#4b5680',
-                  fontSize: 10,
+                  background: tab === t ? '#fff0ea' : '#fffaf7',
+                  border: `1.5px solid ${tab === t ? '#e07850' : '#f0d8cc'}`,
+                  borderRadius: 10,
+                  padding: '9px 0',
+                  color: tab === t ? '#e07850' : '#c49a8a',
+                  fontSize: 11,
                   letterSpacing: 2,
                   cursor: 'pointer',
-                  fontFamily: "'Courier New', monospace",
+                  fontFamily: 'inherit',
                   textTransform: 'uppercase',
+                  fontWeight: 700,
                 }}
               >
                 {t}
@@ -649,26 +748,27 @@ export default function SeatingPlan() {
           {tab === 'plan' && (
             <div
               style={{
-                background: '#111525',
-                borderRadius: 14,
-                border: '1px solid #252a45',
-                padding: 16,
+                background: '#fffaf7',
+                borderRadius: 20,
+                border: '1.5px solid #f0d8cc',
+                padding: 18,
               }}
             >
               <div
                 style={{
-                  fontSize: 9,
+                  fontSize: 10,
                   letterSpacing: 3,
-                  color: '#4b5680',
-                  marginBottom: 12,
+                  color: '#c49a8a',
+                  marginBottom: 14,
+                  fontWeight: 700,
                 }}
               >
                 LAYOUT INFO
               </div>
               {[
-                { label: 'Top Row', val: 'T1 – T21', note: '21 seats' },
-                { label: 'Left Col', val: 'L1 – L15', note: '15 seats' },
-                { label: 'Right Col', val: 'R1 – R15', note: '15 seats' },
+                { label: 'Top Row', val: 'T1–T21', note: '21 seats' },
+                { label: 'Left Col', val: 'L1–L15', note: '15 seats' },
+                { label: 'Right Col', val: 'R1–R15', note: '15 seats' },
                 { label: 'Total', val: '51 seats', note: '' },
               ].map((r) => (
                 <div
@@ -676,14 +776,17 @@ export default function SeatingPlan() {
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    padding: '6px 0',
-                    borderBottom: '1px solid #1a1f33',
-                    fontSize: 11,
+                    padding: '7px 0',
+                    borderBottom: '1px solid #f5e8e0',
+                    fontSize: 12,
                   }}
                 >
-                  <span style={{ color: '#4b5680' }}>{r.label}</span>
-                  <span style={{ color: '#818cf8' }}>
-                    {r.val} <span style={{ color: '#3d4466' }}>{r.note}</span>
+                  <span style={{ color: '#c49a8a' }}>{r.label}</span>
+                  <span style={{ color: '#e07850', fontWeight: 700 }}>
+                    {r.val}{' '}
+                    <span style={{ color: '#d0b8a8', fontWeight: 400 }}>
+                      {r.note}
+                    </span>
                   </span>
                 </div>
               ))}
@@ -692,18 +795,18 @@ export default function SeatingPlan() {
                 style={{
                   marginTop: 14,
                   width: '100%',
-                  background: '#1a0d0d',
-                  border: '1px solid #7f1d1d',
-                  borderRadius: 8,
-                  padding: '9px 0',
-                  color: '#f87171',
-                  fontSize: 11,
-                  letterSpacing: 2,
+                  background: '#fff0f0',
+                  border: '1.5px solid #e07070',
+                  borderRadius: 10,
+                  padding: '10px 0',
+                  color: '#a02020',
+                  fontSize: 12,
                   cursor: 'pointer',
-                  fontFamily: "'Courier New', monospace",
+                  fontFamily: 'inherit',
+                  fontWeight: 700,
                 }}
               >
-                ⌫ CLEAR ALL
+                ⌫ CLEAR ALL SEATS
               </button>
             </div>
           )}
@@ -711,26 +814,27 @@ export default function SeatingPlan() {
           {tab === 'guests' && (
             <div
               style={{
-                background: '#111525',
-                borderRadius: 14,
-                border: '1px solid #252a45',
-                padding: 16,
-                maxHeight: 300,
+                background: '#fffaf7',
+                borderRadius: 20,
+                border: '1.5px solid #f0d8cc',
+                padding: 18,
+                maxHeight: 340,
                 overflowY: 'auto',
               }}
             >
               <div
                 style={{
-                  fontSize: 9,
+                  fontSize: 10,
                   letterSpacing: 3,
-                  color: '#4b5680',
-                  marginBottom: 10,
+                  color: '#c49a8a',
+                  marginBottom: 12,
+                  fontWeight: 700,
                 }}
               >
                 GUEST LIST ({assigned})
               </div>
               {seats.filter((s) => s.name).length === 0 ? (
-                <div style={{ color: '#3d4466', fontSize: 12 }}>
+                <div style={{ color: '#d0b8a8', fontSize: 13 }}>
                   No guests assigned yet.
                 </div>
               ) : (
@@ -743,22 +847,23 @@ export default function SeatingPlan() {
                       style={{
                         display: 'flex',
                         justifyContent: 'space-between',
-                        padding: '6px 0',
-                        borderBottom: '1px solid #1a1f33',
+                        alignItems: 'center',
+                        padding: '7px 0',
+                        borderBottom: '1px solid #f5e8e0',
                         cursor: 'pointer',
-                        fontSize: 11,
+                        fontSize: 12,
                       }}
                     >
                       <span
                         style={{
-                          color: s.status === 'vip' ? '#fbbf24' : '#818cf8',
+                          color: s.status === 'vip' ? '#c07800' : '#6060e0',
                           fontWeight: 700,
                         }}
                       >
                         {s.id}
                         {s.status === 'vip' ? ' ★' : ''}
                       </span>
-                      <span style={{ color: '#8892b0' }}>{s.name}</span>
+                      <span style={{ color: '#806050' }}>{s.name}</span>
                     </div>
                   ))
               )}
