@@ -69,15 +69,40 @@ async function clearAllSeats() {
   });
 }
 
+// Format timestamp: "Today at 3:24 PM" or "Yesterday at 11:00 AM"
+function formatTimestamp(date) {
+  if (!date) return null;
+  const now = new Date();
+  const diff = now - date;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+
+  if (seconds < 10) return 'Just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+
+  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const isToday = date.toDateString() === now.toDateString();
+  const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = date.toDateString() === yesterday.toDateString();
+
+  if (isToday) return `Today at ${timeStr}`;
+  if (isYesterday) return `Yesterday at ${timeStr}`;
+  return `${date.toLocaleDateString()} at ${timeStr}`;
+}
+
 const COLORS = {
   empty:    { body: '#e2c9c9', legs: '#7a5c5c', border: '#c9a8a8', text: '#9e7c7c', bg: 'transparent' },
   assigned: { body: '#7ec8a4', legs: '#3a7a5c', border: '#4caf82', text: '#1a5c3c', bg: '#eafff4' },
   vip:      { body: '#f7c948', legs: '#b8860b', border: '#f0a500', text: '#7a4f00', bg: '#fff8e1' },
   selected: { body: '#7aabf7', legs: '#2355a0', border: '#4080ee', text: '#1a3a7a', bg: '#e8f0ff' },
+  duplicate:{ body: '#f7a0a0', legs: '#a03030', border: '#e05050', text: '#7a1010', bg: '#fff0f0' },
 };
 
 function SeatIcon({ status, size = 36 }) {
-  const c = COLORS[status];
+  const c = COLORS[status] || COLORS.empty;
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
       <rect x="10" y="4" width="28" height="22" rx="6" fill={c.body} stroke={c.border} strokeWidth="1.5" />
@@ -90,86 +115,55 @@ function SeatIcon({ status, size = 36 }) {
   );
 }
 
-// TOP SEAT — fixed width AND height so all boxes are identical size
-// Name is clipped inside the fixed box
-const TOP_W = 76;  // fixed width for every top seat
-const TOP_H = 110; // fixed height for every top seat (icon + id + name area)
+const TOP_W = 76;
+const TOP_H = 110;
 
-function TopSeat({ seat, isSelected, onClick }) {
-  const status = isSelected ? 'selected' : seat.status;
-  const c = COLORS[status];
+function TopSeat({ seat, isSelected, isDuplicate, onClick }) {
+  const status = isSelected ? 'selected' : isDuplicate ? 'duplicate' : seat.status;
+  const c = COLORS[status] || COLORS.empty;
   return (
     <div onClick={onClick} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      cursor: 'pointer',
-      width: TOP_W,
-      height: TOP_H,
-      flexShrink: 0,
-      padding: '5px 4px 5px',
-      borderRadius: 10,
-      boxSizing: 'border-box',
-      background: isSelected ? '#ddeeff' : seat.status === 'empty' ? 'transparent' : c.bg,
-      border: isSelected ? '2px solid #4080ee' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
-      boxShadow: isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+      cursor: 'pointer', width: TOP_W, height: TOP_H, flexShrink: 0,
+      padding: '5px 4px 5px', borderRadius: 10, boxSizing: 'border-box',
+      background: isSelected ? '#ddeeff' : isDuplicate ? '#fff0f0' : seat.status === 'empty' ? 'transparent' : c.bg,
+      border: isSelected ? '2px solid #4080ee' : isDuplicate ? '2px solid #e05050' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
+      boxShadow: isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : isDuplicate ? '0 2px 10px rgba(224,80,80,0.25)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
       transition: 'all 0.15s ease',
       transform: isSelected ? 'translateY(-2px) scale(1.04)' : 'scale(1)',
-      overflow: 'hidden',        // clip anything that overflows the fixed box
-      justifyContent: 'flex-start',
+      overflow: 'hidden', justifyContent: 'flex-start',
     }}>
       <SeatIcon status={status} size={34} />
       <div style={{ fontSize: 10, fontWeight: 700, color: c.text, letterSpacing: 0.5, whiteSpace: 'nowrap', marginTop: 2 }}>{seat.id}</div>
-      {/* Name area: fixed remaining height, text wraps and is centered */}
-      <div style={{
-        flex: 1,
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        overflow: 'hidden',
-        marginTop: 3,
-      }}>
+      <div style={{ flex: 1, width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginTop: 3 }}>
         {seat.name && (
-          <div style={{
-            fontSize: 11, color: c.text, fontWeight: 600,
-            textAlign: 'center', lineHeight: 1.25,
-            wordBreak: 'break-word', whiteSpace: 'normal',
-            width: '100%',
-            // max 3 lines, clip after that
-            display: '-webkit-box',
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-          }}>
+          <div style={{ fontSize: 11, color: c.text, fontWeight: 600, textAlign: 'center', lineHeight: 1.25, wordBreak: 'break-word', whiteSpace: 'normal', width: '100%', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
             {seat.name}{seat.status === 'vip' ? ' ★' : ''}
           </div>
         )}
-        {seat.status === 'vip' && !seat.name && (
-          <div style={{ fontSize: 9, color: '#f0a500' }}>★</div>
+        {isDuplicate && !isSelected && (
+          <div style={{ fontSize: 9, color: '#e05050', fontWeight: 700, marginTop: 1 }}>⚠ DUP</div>
         )}
+        {seat.status === 'vip' && !seat.name && <div style={{ fontSize: 9, color: '#f0a500' }}>★</div>}
       </div>
     </div>
   );
 }
 
-// Side seat — name centered, single line with ellipsis
-function SideSeat({ seat, isSelected, onClick, namePosition }) {
-  const status = isSelected ? 'selected' : seat.status;
-  const c = COLORS[status];
+function SideSeat({ seat, isSelected, isDuplicate, onClick, namePosition }) {
+  const status = isSelected ? 'selected' : isDuplicate ? 'duplicate' : seat.status;
+  const c = COLORS[status] || COLORS.empty;
 
   const nameBlock = (
     <div style={{
-      flex: 1,
-      fontSize: 13,
+      flex: 1, fontSize: 13,
       color: seat.name ? c.text : 'transparent',
-      fontWeight: 600,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-      textAlign: 'center',
-      minWidth: 0,
+      fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap', textAlign: 'center', minWidth: 0,
     }}>
       {seat.name || '·'}
-      {seat.status === 'vip' && seat.name && <span style={{ color: '#f0a500', marginLeft: 3 }}>★</span>}
+      {isDuplicate && <span style={{ color: '#e05050', marginLeft: 4, fontSize: 10 }}>⚠</span>}
+      {seat.status === 'vip' && seat.name && !isDuplicate && <span style={{ color: '#f0a500', marginLeft: 3 }}>★</span>}
     </div>
   );
 
@@ -177,13 +171,12 @@ function SideSeat({ seat, isSelected, onClick, namePosition }) {
     <div onClick={onClick} style={{
       display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
       cursor: 'pointer', padding: '2px 6px', borderRadius: 10,
-      background: isSelected ? '#ddeeff' : seat.status === 'empty' ? 'transparent' : c.bg,
-      border: isSelected ? '2px solid #4080ee' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
-      boxShadow: isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+      background: isSelected ? '#ddeeff' : isDuplicate ? '#fff0f0' : seat.status === 'empty' ? 'transparent' : c.bg,
+      border: isSelected ? '2px solid #4080ee' : isDuplicate ? '2px solid #e05050' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
+      boxShadow: isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : isDuplicate ? '0 2px 10px rgba(224,80,80,0.2)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
       transition: 'all 0.15s ease',
       transform: isSelected ? 'scale(1.03)' : 'scale(1)',
-      height: 50,
-      width: 220,
+      height: 50, width: 220,
     }}>
       {namePosition === 'left' && nameBlock}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flexShrink: 0 }}>
@@ -292,13 +285,13 @@ function BulkImportModal({ seats, onClose, onImport }) {
   );
 }
 
-function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, onCancel, anchorY }) {
+function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, onCancel, anchorY, duplicateOf }) {
   const panelRef = useRef(null);
   const [top, setTop] = useState(0);
 
   useEffect(() => {
     if (!selData || !panelRef.current) return;
-    const panelH = panelRef.current.offsetHeight || 200;
+    const panelH = panelRef.current.offsetHeight || 220;
     const viewH = window.innerHeight;
     const scrollY = window.scrollY;
     let t = anchorY + scrollY - panelH / 2;
@@ -309,13 +302,22 @@ function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, 
   if (!selData) return null;
 
   return (
-    <div ref={panelRef} style={{ position: 'absolute', top, right: 16, width: 230, background: '#fffaf7', borderRadius: 20, border: '2px solid #f0c0a0', padding: 18, boxShadow: '0 8px 36px rgba(200,120,80,0.18)', zIndex: 500, transition: 'top 0.2s ease' }}>
-      <div style={{ fontSize: 10, letterSpacing: 3, color: '#c49a8a', marginBottom: 12, fontWeight: 700 }}>✏️ EDITING — {selData.id}</div>
-      <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && assign()} placeholder="Guest name…" autoFocus
-        style={{ width: '100%', boxSizing: 'border-box', background: '#fff5f0', border: '1.5px solid #f0c0a0', borderRadius: 10, padding: '10px 14px', color: '#3a2a2a', fontSize: 14, outline: 'none', fontFamily: 'inherit', marginBottom: 12 }} />
+    <div ref={panelRef} style={{ position: 'absolute', top, right: 16, width: 240, background: '#fffaf7', borderRadius: 20, border: `2px solid ${duplicateOf ? '#e05050' : '#f0c0a0'}`, padding: 18, boxShadow: `0 8px 36px ${duplicateOf ? 'rgba(224,80,80,0.2)' : 'rgba(200,120,80,0.18)'}`, zIndex: 500, transition: 'top 0.2s ease' }}>
+      <div style={{ fontSize: 10, letterSpacing: 3, color: '#c49a8a', marginBottom: 8, fontWeight: 700 }}>✏️ EDITING — {selData.id}</div>
+
+      {/* Duplicate warning banner */}
+      {duplicateOf && (
+        <div style={{ background: '#fff0f0', border: '1.5px solid #e05050', borderRadius: 8, padding: '8px 10px', marginBottom: 10, fontSize: 12, color: '#a02020', fontWeight: 600, lineHeight: 1.4 }}>
+          ⚠️ Duplicate! <strong>{name}</strong> is already assigned to <strong>{duplicateOf}</strong>
+        </div>
+      )}
+
+      <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && !duplicateOf && assign()} placeholder="Guest name…" autoFocus
+        style={{ width: '100%', boxSizing: 'border-box', background: duplicateOf ? '#fff5f5' : '#fff5f0', border: `1.5px solid ${duplicateOf ? '#e07070' : '#f0c0a0'}`, borderRadius: 10, padding: '10px 14px', color: '#3a2a2a', fontSize: 14, outline: 'none', fontFamily: 'inherit', marginBottom: 10 }} />
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {[
-          { label: '✓ Assign', fn: assign,    bg: '#e8fff4', border: '#4caf82', color: '#1a6a42' },
+          { label: '✓ Assign', fn: assign,    bg: duplicateOf ? '#fff5f5' : '#e8fff4', border: duplicateOf ? '#e07070' : '#4caf82', color: duplicateOf ? '#a02020' : '#1a6a42' },
           { label: '★ VIP',    fn: toggleVIP, bg: '#fff8e0', border: '#f0a500', color: '#7a5000' },
           { label: '✕ Clear',  fn: clearSeat, bg: '#fff0f0', border: '#e07070', color: '#a02020' },
           { label: 'Cancel',   fn: onCancel,  bg: '#f5f5f5', border: '#d0c0b8', color: '#806050' },
@@ -323,6 +325,11 @@ function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, 
           <button key={b.label} onClick={b.fn} style={{ background: b.bg, border: `1.5px solid ${b.border}`, borderRadius: 10, padding: '10px 0', color: b.color, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{b.label}</button>
         ))}
       </div>
+      {duplicateOf && (
+        <div style={{ fontSize: 10, color: '#c08080', marginTop: 8, textAlign: 'center' }}>
+          You can still assign — tap Assign to override
+        </div>
+      )}
     </div>
   );
 }
@@ -334,6 +341,8 @@ export default function SeatingPlan() {
   const [tab, setTab] = useState('plan');
   const [loaded, setLoaded] = useState(false);
   const [saveStatus, setSaveStatus] = useState('saved');
+  const [lastSaved, setLastSaved] = useState(null);
+  const [lastSavedDisplay, setLastSavedDisplay] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
   const [anchorY, setAnchorY] = useState(200);
@@ -341,6 +350,14 @@ export default function SeatingPlan() {
   const [future, setFuture] = useState([]);
   const isSaving = useRef(false);
   const isCleared = useRef(false);
+
+  // Update "X min ago" display every 30 seconds
+  useEffect(() => {
+    const tick = setInterval(() => {
+      setLastSavedDisplay(lastSaved ? formatTimestamp(lastSaved) : null);
+    }, 30000);
+    return () => clearInterval(tick);
+  }, [lastSaved]);
 
   useEffect(() => {
     loadSeats().then(s => { setSeats(s); setLoaded(true); });
@@ -350,9 +367,36 @@ export default function SeatingPlan() {
     return () => clearInterval(poll);
   }, []);
 
+  // Find duplicate seats: returns a map of { seatId -> otherSeatId } for duplicates
+  const getDuplicateMap = (seatList) => {
+    const nameMap = {}; // name -> [seatIds]
+    seatList.forEach(s => {
+      if (s.name) {
+        const key = s.name.trim().toLowerCase();
+        if (!nameMap[key]) nameMap[key] = [];
+        nameMap[key].push(s.id);
+      }
+    });
+    const dupMap = {};
+    Object.values(nameMap).forEach(ids => {
+      if (ids.length > 1) {
+        ids.forEach(id => { dupMap[id] = ids.filter(x => x !== id)[0]; });
+      }
+    });
+    return dupMap;
+  };
+
   const pushHistory = (cur) => {
     setHistory(prev => { const next = [...prev, cur]; return next.length > 10 ? next.slice(-10) : next; });
     setFuture([]);
+  };
+
+  const markSaved = () => {
+    const now = new Date();
+    setLastSaved(now);
+    setLastSavedDisplay(formatTimestamp(now));
+    setSaveStatus('saved');
+    isSaving.current = false;
   };
 
   const updateSeat = (updatedSeat) => {
@@ -360,7 +404,7 @@ export default function SeatingPlan() {
       pushHistory(prev);
       const next = prev.map(s => s.id === updatedSeat.id ? updatedSeat : s);
       setSaveStatus('saving'); isSaving.current = true;
-      saveSeat(updatedSeat).then(() => { setSaveStatus('saved'); isSaving.current = false; }).catch(() => { setSaveStatus('error'); isSaving.current = false; });
+      saveSeat(updatedSeat).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; });
       return next;
     });
   };
@@ -370,7 +414,7 @@ export default function SeatingPlan() {
     const prev = history[history.length - 1];
     setHistory(h => h.slice(0, -1)); setFuture(f => [seats, ...f].slice(0, 10)); setSeats(prev);
     setSaveStatus('saving'); isSaving.current = true;
-    saveAllSeats(prev).then(() => { setSaveStatus('saved'); isSaving.current = false; }).catch(() => { setSaveStatus('error'); isSaving.current = false; });
+    saveAllSeats(prev).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; });
   };
 
   const redo = () => {
@@ -378,14 +422,14 @@ export default function SeatingPlan() {
     const next = future[0];
     setFuture(f => f.slice(1)); setHistory(h => [...h, seats].slice(-10)); setSeats(next);
     setSaveStatus('saving'); isSaving.current = true;
-    saveAllSeats(next).then(() => { setSaveStatus('saved'); isSaving.current = false; }).catch(() => { setSaveStatus('error'); isSaving.current = false; });
+    saveAllSeats(next).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; });
   };
 
   const handleBulkImport = (assignments) => {
     pushHistory(seats);
     const updated = seats.map(s => { const m = assignments.find(a => a.id === s.id); return m ? m : s; });
     setSeats(updated); setSaveStatus('saving'); isSaving.current = true;
-    saveAllSeats(assignments).then(() => { setSaveStatus('saved'); isSaving.current = false; }).catch(() => { setSaveStatus('error'); isSaving.current = false; });
+    saveAllSeats(assignments).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; });
   };
 
   const getSeat = (id) => seats.find(s => s.id === id);
@@ -399,14 +443,18 @@ export default function SeatingPlan() {
     }
   };
 
-  const assign = () => { if (!sel) return; const seat = getSeat(sel); updateSeat({ ...seat, name, status: name ? (seat.status === 'vip' ? 'vip' : 'assigned') : 'empty' }); };
+  const assign = () => {
+    if (!sel) return;
+    const seat = getSeat(sel);
+    updateSeat({ ...seat, name, status: name ? (seat.status === 'vip' ? 'vip' : 'assigned') : 'empty' });
+  };
   const toggleVIP = () => { if (!sel) return; const seat = getSeat(sel); updateSeat({ ...seat, status: seat.status === 'vip' ? (seat.name ? 'assigned' : 'empty') : 'vip' }); };
   const clearSeat = () => { if (!sel) return; updateSeat({ ...getSeat(sel), name: '', status: 'empty' }); setName(''); setSel(null); };
   const confirmClearAll = () => {
     setShowConfirm(false); pushHistory(seats);
     setSeats(buildSeats()); setSel(null); setName('');
     setSaveStatus('saving'); isSaving.current = true; isCleared.current = true;
-    clearAllSeats().then(() => { setSaveStatus('saved'); isSaving.current = false; }).catch(() => { setSaveStatus('error'); isSaving.current = false; });
+    clearAllSeats().then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; });
   };
 
   const topSeats   = seats.filter(s => s.row === 'top');
@@ -416,6 +464,14 @@ export default function SeatingPlan() {
   const vips       = seats.filter(s => s.status === 'vip').length;
   const emptyCount = seats.filter(s => s.status === 'empty').length;
   const selData    = sel ? getSeat(sel) : null;
+
+  const dupMap     = getDuplicateMap(seats);
+  const dupCount   = Object.keys(dupMap).length / 2; // pairs
+
+  // Check if current name being typed is a duplicate (ignoring current seat)
+  const currentDupOf = name.trim()
+    ? seats.find(s => s.id !== sel && s.name && s.name.trim().toLowerCase() === name.trim().toLowerCase())?.id || null
+    : null;
 
   if (!loaded) return (
     <div style={{ minHeight: '100vh', background: '#fdf6f0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Georgia,serif', color: '#b08070', fontSize: 18, letterSpacing: 4 }}>
@@ -428,16 +484,33 @@ export default function SeatingPlan() {
 
       {showConfirm && <ConfirmDialog message="This will permanently clear all seat assignments." onConfirm={confirmClearAll} onCancel={() => setShowConfirm(false)} />}
       {showBulk && <BulkImportModal seats={seats} onClose={() => setShowBulk(false)} onImport={handleBulkImport} />}
-      <FloatingEditor selData={selData} name={name} setName={setName} assign={assign} toggleVIP={toggleVIP} clearSeat={clearSeat} onCancel={() => { setSel(null); setName(''); }} anchorY={anchorY} />
+      <FloatingEditor selData={selData} name={name} setName={setName} assign={assign} toggleVIP={toggleVIP} clearSeat={clearSeat} onCancel={() => { setSel(null); setName(''); }} anchorY={anchorY} duplicateOf={currentDupOf} />
 
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <div style={{ fontSize: 11, letterSpacing: 6, color: '#c49a8a', textTransform: 'uppercase', marginBottom: 6 }}>Event Seating System</div>
         <h1 style={{ margin: 0, fontSize: 34, fontWeight: 900, letterSpacing: '-1px', background: 'linear-gradient(90deg,#e07850,#d050a0,#6060e0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SEAT PLANNER</h1>
         <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 6, letterSpacing: 3 }}>21 TOP · 15 LEFT · 15 RIGHT · {seats.length} SEATS</div>
-        <div style={{ marginTop: 6, fontSize: 11, letterSpacing: 2, fontWeight: 600, color: saveStatus === 'saved' ? '#4caf82' : saveStatus === 'saving' ? '#f0a500' : '#e05050' }}>
-          {saveStatus === 'saved' ? '✓ ALL CHANGES SAVED' : saveStatus === 'saving' ? '● SAVING...' : '✕ SAVE ERROR'}
+
+        {/* Save status + last saved timestamp */}
+        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 11, letterSpacing: 2, fontWeight: 600, color: saveStatus === 'saved' ? '#4caf82' : saveStatus === 'saving' ? '#f0a500' : '#e05050' }}>
+            {saveStatus === 'saved' ? '✓ SAVED' : saveStatus === 'saving' ? '● SAVING...' : '✕ SAVE ERROR'}
+          </div>
+          {lastSavedDisplay && saveStatus === 'saved' && (
+            <div style={{ fontSize: 11, color: '#b8a090', letterSpacing: 1 }}>
+              · {lastSavedDisplay}
+            </div>
+          )}
         </div>
+
+        {/* Duplicate warning banner */}
+        {dupCount > 0 && (
+          <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff0f0', border: '1.5px solid #e05050', borderRadius: 10, padding: '6px 14px', fontSize: 12, color: '#a02020', fontWeight: 600 }}>
+            ⚠️ {dupCount} duplicate name{dupCount > 1 ? 's' : ''} detected — check red seats
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10 }}>
           <button onClick={undo} disabled={!history.length} style={{ background: history.length ? '#eeeeff' : '#f5f5f5', border: `1.5px solid ${history.length ? '#6060e0' : '#ddd'}`, borderRadius: 10, padding: '7px 18px', color: history.length ? '#4040c0' : '#bbb', fontWeight: 700, fontSize: 12, cursor: history.length ? 'pointer' : 'default', fontFamily: 'inherit' }}>↩ Undo {history.length > 0 ? `(${history.length})` : ''}</button>
           <button onClick={redo} disabled={!future.length} style={{ background: future.length ? '#eeeeff' : '#f5f5f5', border: `1.5px solid ${future.length ? '#6060e0' : '#ddd'}`, borderRadius: 10, padding: '7px 18px', color: future.length ? '#4040c0' : '#bbb', fontWeight: 700, fontSize: 12, cursor: future.length ? 'pointer' : 'default', fontFamily: 'inherit' }}>Redo {future.length > 0 ? `(${future.length})` : ''} ↪</button>
@@ -457,41 +530,47 @@ export default function SeatingPlan() {
             <div style={{ fontSize: 10, letterSpacing: 1, color: s.color, opacity: 0.7, marginTop: 2 }}>{s.label.toUpperCase()}</div>
           </div>
         ))}
+        {dupCount > 0 && (
+          <div style={{ padding: '10px 22px', borderRadius: 16, background: '#fff0f0', border: '1.5px solid #e0505022', textAlign: 'center', minWidth: 70 }}>
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#e05050' }}>{dupCount}</div>
+            <div style={{ fontSize: 10, letterSpacing: 1, color: '#e05050', opacity: 0.7, marginTop: 2 }}>DUPLICATE{dupCount > 1 ? 'S' : ''}</div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
 
         {/* Seating Canvas */}
         <div style={{ background: '#fffaf7', borderRadius: 24, border: '1.5px solid #f0d8cc', padding: '18px 14px 14px', boxShadow: '0 8px 40px rgba(200,120,80,0.10)' }}>
-
-          {/* Stage */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, gap: 10 }}>
             <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg,transparent,#e0a090)', borderRadius: 2 }} />
             <div style={{ fontSize: 11, letterSpacing: 4, color: '#e07850', border: '2px solid #f0c0a0', padding: '5px 20px', borderRadius: 8, background: '#fff5f0', fontWeight: 700, whiteSpace: 'nowrap' }}>▼ STAGE / FRONT ▼</div>
             <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg,#e0a090,transparent)', borderRadius: 2 }} />
           </div>
 
-          {/* Top row — all seats same fixed size, overflow hidden */}
           <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-            {topSeats.map(s => <TopSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={(e) => select(s.id, e)} />)}
+            {topSeats.map(s => <TopSeat key={s.id} seat={s} isSelected={sel === s.id} isDuplicate={!!dupMap[s.id]} onClick={(e) => select(s.id, e)} />)}
           </div>
 
-          {/* Gap between top row and side columns */}
           <div style={{ height: 20 }} />
 
-          {/* Left + Right */}
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {leftSeats.map(s => <SideSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={(e) => select(s.id, e)} namePosition="right" />)}
+              {leftSeats.map(s => <SideSeat key={s.id} seat={s} isSelected={sel === s.id} isDuplicate={!!dupMap[s.id]} onClick={(e) => select(s.id, e)} namePosition="right" />)}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {rightSeats.map(s => <SideSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={(e) => select(s.id, e)} namePosition="left" />)}
+              {rightSeats.map(s => <SideSeat key={s.id} seat={s} isSelected={sel === s.id} isDuplicate={!!dupMap[s.id]} onClick={(e) => select(s.id, e)} namePosition="left" />)}
             </div>
           </div>
 
-          {/* Legend */}
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
-            {[{ label: 'Empty', color: '#c9a8a8' }, { label: 'Assigned', color: '#4caf82' }, { label: 'VIP', color: '#f0a500' }, { label: 'Selected', color: '#4080ee' }].map(l => (
+            {[
+              { label: 'Empty', color: '#c9a8a8' },
+              { label: 'Assigned', color: '#4caf82' },
+              { label: 'VIP', color: '#f0a500' },
+              { label: 'Selected', color: '#4080ee' },
+              { label: 'Duplicate', color: '#e05050' },
+            ].map(l => (
               <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#a08070' }}>
                 <div style={{ width: 11, height: 11, borderRadius: 3, background: l.color, opacity: 0.8 }} />{l.label}
               </div>
@@ -539,8 +618,10 @@ export default function SeatingPlan() {
                 ? <div style={{ color: '#d0b8a8', fontSize: 13 }}>No guests assigned yet.</div>
                 : seats.filter(s => s.name).map(s => (
                   <div key={s.id} onClick={() => select(s.id)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #f5e8e0', cursor: 'pointer', fontSize: 12 }}>
-                    <span style={{ color: s.status === 'vip' ? '#c07800' : '#6060e0', fontWeight: 700 }}>{s.id}{s.status === 'vip' ? ' ★' : ''}</span>
-                    <span style={{ color: '#806050' }}>{s.name}</span>
+                    <span style={{ color: dupMap[s.id] ? '#e05050' : s.status === 'vip' ? '#c07800' : '#6060e0', fontWeight: 700 }}>
+                      {s.id}{s.status === 'vip' ? ' ★' : ''}{dupMap[s.id] ? ' ⚠' : ''}
+                    </span>
+                    <span style={{ color: dupMap[s.id] ? '#e05050' : '#806050' }}>{s.name}</span>
                   </div>
                 ))
               }
