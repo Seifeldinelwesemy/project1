@@ -76,7 +76,7 @@ const COLORS = {
   selected: { body: '#7aabf7', legs: '#2355a0', border: '#4080ee', text: '#1a3a7a', bg: '#e8f0ff' },
 };
 
-function SeatIcon({ status, size = 40 }) {
+function SeatIcon({ status, size = 38 }) {
   const c = COLORS[status];
   return (
     <svg width={size} height={size} viewBox="0 0 48 48" fill="none" style={{ flexShrink: 0 }}>
@@ -90,85 +90,71 @@ function SeatIcon({ status, size = 40 }) {
   );
 }
 
-// Top row seat — icon on top, id + name below
 function TopSeat({ seat, isSelected, onClick }) {
   const status = isSelected ? 'selected' : seat.status;
   const c = COLORS[status];
   return (
     <div onClick={onClick} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      cursor: 'pointer', width: 58, gap: 2, padding: '5px 3px 6px', borderRadius: 10,
+      cursor: 'pointer', width: 56, gap: 2, padding: '4px 3px 5px', borderRadius: 10,
       background: isSelected ? '#ddeeff' : seat.status === 'empty' ? 'transparent' : c.bg,
       border: isSelected ? '2px solid #4080ee' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
       boxShadow: isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
       transition: 'all 0.15s ease',
       transform: isSelected ? 'translateY(-2px) scale(1.05)' : 'scale(1)',
     }}>
-      <SeatIcon status={status} size={38} />
-      <div style={{ fontSize: 11, fontWeight: 700, color: c.text, letterSpacing: 0.5 }}>{seat.id}</div>
+      <SeatIcon status={status} size={36} />
+      <div style={{ fontSize: 10, fontWeight: 700, color: c.text, letterSpacing: 0.5 }}>{seat.id}</div>
       {seat.name && (
-        <div style={{ fontSize: 11, color: c.text, fontWeight: 600, maxWidth: 54, textAlign: 'center', lineHeight: 1.2, wordBreak: 'break-word' }}>
+        <div style={{ fontSize: 10, color: c.text, fontWeight: 600, maxWidth: 52, textAlign: 'center', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {seat.name}
         </div>
       )}
-      {seat.status === 'vip' && <div style={{ fontSize: 9, color: '#f0a500' }}>★</div>}
+      {seat.status === 'vip' && <div style={{ fontSize: 8, color: '#f0a500' }}>★</div>}
     </div>
   );
 }
 
-// Side seat — icon + id in center, name to the side
+// Side seat — single line name beside the icon
 function SideSeat({ seat, isSelected, onClick, namePosition }) {
-  // namePosition: 'right' for L seats (name appears to the right), 'left' for R seats
   const status = isSelected ? 'selected' : seat.status;
   const c = COLORS[status];
 
-  const nameBlock = seat.name ? (
+  const nameBlock = (
     <div style={{
-      fontSize: 13, color: c.text, fontWeight: 600,
-      maxWidth: 90, lineHeight: 1.3, wordBreak: 'break-word',
+      flex: 1,
+      fontSize: 13,
+      color: seat.name ? c.text : 'transparent',
+      fontWeight: 600,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
       textAlign: namePosition === 'right' ? 'left' : 'right',
+      minWidth: 0,
     }}>
-      {seat.name}
-      {seat.status === 'vip' && <span style={{ color: '#f0a500', marginLeft: 3 }}>★</span>}
+      {seat.name || '·'}
+      {seat.status === 'vip' && seat.name && <span style={{ color: '#f0a500', marginLeft: 3 }}>★</span>}
     </div>
-  ) : null;
+  );
 
   return (
     <div onClick={onClick} style={{
-      display: 'flex',
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 6,
-      cursor: 'pointer',
-      padding: '3px 6px',
-      borderRadius: 10,
+      display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
+      cursor: 'pointer', padding: '2px 6px', borderRadius: 10,
       background: isSelected ? '#ddeeff' : seat.status === 'empty' ? 'transparent' : c.bg,
       border: isSelected ? '2px solid #4080ee' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
       boxShadow: isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
       transition: 'all 0.15s ease',
-      transform: isSelected ? 'scale(1.04)' : 'scale(1)',
-      minHeight: 48,
-      minWidth: 160,
+      transform: isSelected ? 'scale(1.03)' : 'scale(1)',
+      height: 50,
+      width: 200,
     }}>
-      {/* For R seats: name LEFT, then icon+id RIGHT */}
-      {namePosition === 'left' && (
-        <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-          {nameBlock}
-        </div>
-      )}
-
-      {/* Icon + seat id */}
+      {namePosition === 'left' && nameBlock}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flexShrink: 0 }}>
-        <SeatIcon status={status} size={38} />
-        <div style={{ fontSize: 11, fontWeight: 700, color: c.text, letterSpacing: 0.5 }}>{seat.id}</div>
+        <SeatIcon status={status} size={36} />
+        <div style={{ fontSize: 10, fontWeight: 700, color: c.text }}>{seat.id}</div>
       </div>
-
-      {/* For L seats: name RIGHT of icon */}
-      {namePosition === 'right' && (
-        <div style={{ flex: 1 }}>
-          {nameBlock}
-        </div>
-      )}
+      {namePosition === 'right' && nameBlock}
     </div>
   );
 }
@@ -195,32 +181,24 @@ function BulkImportModal({ seats, onClose, onImport }) {
   const [step, setStep] = useState('paste');
   const [dragIdx, setDragIdx] = useState(null);
   const [overIdx, setOverIdx] = useState(null);
-
   const emptySeats = seats.filter(s => s.status === 'empty');
 
   const handleParse = () => {
     const parsed = rawText.split('\n').map(n => n.trim()).filter(Boolean);
-    if (parsed.length === 0) return;
-    setNames(parsed);
-    setStep('order');
+    if (!parsed.length) return;
+    setNames(parsed); setStep('order');
   };
 
   const onDragStart = (i) => setDragIdx(i);
   const onDragOver = (e, i) => { e.preventDefault(); setOverIdx(i); };
   const onDrop = (i) => {
     if (dragIdx === null || dragIdx === i) { setDragIdx(null); setOverIdx(null); return; }
-    const reordered = [...names];
-    const [moved] = reordered.splice(dragIdx, 1);
-    reordered.splice(i, 0, moved);
-    setNames(reordered);
-    setDragIdx(null); setOverIdx(null);
+    const r = [...names]; const [m] = r.splice(dragIdx, 1); r.splice(i, 0, m);
+    setNames(r); setDragIdx(null); setOverIdx(null);
   };
 
   const handleImport = () => {
-    const assignments = names.slice(0, emptySeats.length).map((name, i) => ({
-      ...emptySeats[i], name, status: 'assigned',
-    }));
-    onImport(assignments);
+    onImport(names.slice(0, emptySeats.length).map((name, i) => ({ ...emptySeats[i], name, status: 'assigned' })));
     onClose();
   };
 
@@ -232,85 +210,109 @@ function BulkImportModal({ seats, onClose, onImport }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: '#3a2a2a' }}>📋 Bulk Import</div>
-            <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 2 }}>
-              {step === 'paste' ? 'Paste names — one per line' : `Drag to reorder · ${canAssign} will be assigned`}
-            </div>
+            <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 2 }}>{step === 'paste' ? 'Paste names — one per line' : `Drag to reorder · ${canAssign} will be assigned`}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#c49a8a' }}>✕</button>
         </div>
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
           {['Paste Names', 'Set Order', 'Import'].map((label, i) => {
-            const stepNum = step === 'paste' ? 0 : 1;
-            return (
-              <div key={label} style={{
-                flex: 1, textAlign: 'center', padding: '6px 0', borderRadius: 8, fontSize: 11, fontWeight: 700,
-                background: i <= stepNum ? '#fff0ea' : '#f5f0ee',
-                color: i <= stepNum ? '#e07850' : '#c4b0a8',
-                border: `1.5px solid ${i <= stepNum ? '#e07850' : '#f0d8cc'}`,
-              }}>{i + 1}. {label}</div>
-            );
+            const sn = step === 'paste' ? 0 : 1;
+            return <div key={label} style={{ flex: 1, textAlign: 'center', padding: '6px 0', borderRadius: 8, fontSize: 11, fontWeight: 700, background: i <= sn ? '#fff0ea' : '#f5f0ee', color: i <= sn ? '#e07850' : '#c4b0a8', border: `1.5px solid ${i <= sn ? '#e07850' : '#f0d8cc'}` }}>{i + 1}. {label}</div>;
           })}
         </div>
 
-        {step === 'paste' && (
-          <>
-            <textarea
-              value={rawText}
-              onChange={e => setRawText(e.target.value)}
-              placeholder={'Ahmed Al-Rashid\nSarah Johnson\nMohamed Ali\n...'}
-              style={{ width: '100%', boxSizing: 'border-box', height: 220, background: '#fff5f0', border: '1.5px solid #f0c0a0', borderRadius: 12, padding: '12px 14px', fontSize: 14, color: '#3a2a2a', outline: 'none', fontFamily: 'inherit', lineHeight: 1.7, resize: 'vertical' }}
-            />
-            <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 6, marginBottom: 16 }}>
-              {rawText.split('\n').filter(n => n.trim()).length} names detected · {emptySeats.length} empty seats available
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={onClose} style={{ flex: 1, background: '#f5f5f5', border: '1.5px solid #d0c0b8', borderRadius: 10, padding: '11px 0', color: '#806050', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
-              <button onClick={handleParse} disabled={!rawText.trim()} style={{ flex: 2, background: rawText.trim() ? '#fff0ea' : '#f5f0ee', border: `1.5px solid ${rawText.trim() ? '#e07850' : '#ddd'}`, borderRadius: 10, padding: '11px 0', color: rawText.trim() ? '#e07850' : '#bbb', fontWeight: 700, fontSize: 13, cursor: rawText.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>
-                Next → Set Order
-              </button>
-            </div>
-          </>
-        )}
+        {step === 'paste' && (<>
+          <textarea value={rawText} onChange={e => setRawText(e.target.value)} placeholder={'Ahmed Al-Rashid\nSarah Johnson\n...'} style={{ width: '100%', boxSizing: 'border-box', height: 220, background: '#fff5f0', border: '1.5px solid #f0c0a0', borderRadius: 12, padding: '12px 14px', fontSize: 14, color: '#3a2a2a', outline: 'none', fontFamily: 'inherit', lineHeight: 1.7, resize: 'vertical' }} />
+          <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 6, marginBottom: 16 }}>{rawText.split('\n').filter(n => n.trim()).length} names · {emptySeats.length} empty seats</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose} style={{ flex: 1, background: '#f5f5f5', border: '1.5px solid #d0c0b8', borderRadius: 10, padding: '11px 0', color: '#806050', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Cancel</button>
+            <button onClick={handleParse} disabled={!rawText.trim()} style={{ flex: 2, background: rawText.trim() ? '#fff0ea' : '#f5f0ee', border: `1.5px solid ${rawText.trim() ? '#e07850' : '#ddd'}`, borderRadius: 10, padding: '11px 0', color: rawText.trim() ? '#e07850' : '#bbb', fontWeight: 700, fontSize: 13, cursor: rawText.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}>Next → Set Order</button>
+          </div>
+        </>)}
 
-        {step === 'order' && (
-          <>
-            <div style={{ fontSize: 12, color: '#a08070', marginBottom: 10, background: '#fff5f0', borderRadius: 8, padding: '8px 12px', border: '1px solid #f0d8cc' }}>
-              💡 Drag names to reorder. Top of list = first empty seat. Only the first <strong>{emptySeats.length}</strong> names will be assigned.
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <div style={{ flex: 1, fontSize: 10, fontWeight: 700, color: '#c49a8a', letterSpacing: 1 }}>SEAT</div>
-              <div style={{ flex: 3, fontSize: 10, fontWeight: 700, color: '#c49a8a', letterSpacing: 1 }}>GUEST NAME</div>
-              <div style={{ width: 32 }} />
-            </div>
-            <div style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 16 }}>
-              {names.map((name, i) => {
-                const seat = emptySeats[i];
-                const willAssign = !!seat;
-                return (
-                  <div key={i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDrop={() => onDrop(i)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 4, borderRadius: 10, background: overIdx === i ? '#e8f0ff' : willAssign ? '#fffaf7' : '#fff5f5', border: `1.5px solid ${overIdx === i ? '#4080ee' : willAssign ? '#f0d8cc' : '#f0c0c0'}`, cursor: 'grab', opacity: dragIdx === i ? 0.4 : 1, transition: 'all 0.1s' }}>
-                    <div style={{ fontSize: 14, color: '#ccc', userSelect: 'none' }}>⠿</div>
-                    <div style={{ flex: 1, fontSize: 12, fontWeight: 700, color: willAssign ? '#e07850' : '#e07070' }}>{seat ? seat.id : '—'}</div>
-                    <div style={{ flex: 3, fontSize: 13, color: willAssign ? '#3a2a2a' : '#c09090', fontStyle: willAssign ? 'normal' : 'italic' }}>{name}</div>
-                    <div style={{ fontSize: 11, color: willAssign ? '#4caf82' : '#e07070' }}>{willAssign ? '✓' : 'no seat'}</div>
-                  </div>
-                );
-              })}
-            </div>
-            {names.length > emptySeats.length && (
-              <div style={{ fontSize: 11, color: '#e07070', marginBottom: 12, background: '#fff5f5', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0c0c0' }}>
-                ⚠️ {names.length - emptySeats.length} name(s) won't be assigned — not enough empty seats.
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => setStep('paste')} style={{ flex: 1, background: '#f5f5f5', border: '1.5px solid #d0c0b8', borderRadius: 10, padding: '11px 0', color: '#806050', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>← Back</button>
-              <button onClick={handleImport} style={{ flex: 2, background: '#e8fff4', border: '1.5px solid #4caf82', borderRadius: 10, padding: '11px 0', color: '#1a6a42', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-                ✓ Assign {canAssign} Seats
-              </button>
-            </div>
-          </>
-        )}
+        {step === 'order' && (<>
+          <div style={{ fontSize: 12, color: '#a08070', marginBottom: 10, background: '#fff5f0', borderRadius: 8, padding: '8px 12px', border: '1px solid #f0d8cc' }}>💡 Drag to reorder. Top = first empty seat. Max <strong>{emptySeats.length}</strong> will be assigned.</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <div style={{ flex: 1, fontSize: 10, fontWeight: 700, color: '#c49a8a' }}>SEAT</div>
+            <div style={{ flex: 3, fontSize: 10, fontWeight: 700, color: '#c49a8a' }}>GUEST NAME</div>
+            <div style={{ width: 32 }} />
+          </div>
+          <div style={{ maxHeight: 320, overflowY: 'auto', marginBottom: 16 }}>
+            {names.map((name, i) => {
+              const seat = emptySeats[i]; const ok = !!seat;
+              return (
+                <div key={i} draggable onDragStart={() => onDragStart(i)} onDragOver={e => onDragOver(e, i)} onDrop={() => onDrop(i)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', marginBottom: 4, borderRadius: 10, background: overIdx === i ? '#e8f0ff' : ok ? '#fffaf7' : '#fff5f5', border: `1.5px solid ${overIdx === i ? '#4080ee' : ok ? '#f0d8cc' : '#f0c0c0'}`, cursor: 'grab', opacity: dragIdx === i ? 0.4 : 1 }}>
+                  <div style={{ fontSize: 14, color: '#ccc', userSelect: 'none' }}>⠿</div>
+                  <div style={{ flex: 1, fontSize: 12, fontWeight: 700, color: ok ? '#e07850' : '#e07070' }}>{seat ? seat.id : '—'}</div>
+                  <div style={{ flex: 3, fontSize: 13, color: ok ? '#3a2a2a' : '#c09090' }}>{name}</div>
+                  <div style={{ fontSize: 11, color: ok ? '#4caf82' : '#e07070' }}>{ok ? '✓' : 'no seat'}</div>
+                </div>
+              );
+            })}
+          </div>
+          {names.length > emptySeats.length && <div style={{ fontSize: 11, color: '#e07070', marginBottom: 12, background: '#fff5f5', padding: '8px 12px', borderRadius: 8, border: '1px solid #f0c0c0' }}>⚠️ {names.length - emptySeats.length} name(s) won't be assigned.</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setStep('paste')} style={{ flex: 1, background: '#f5f5f5', border: '1.5px solid #d0c0b8', borderRadius: 10, padding: '11px 0', color: '#806050', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>← Back</button>
+            <button onClick={handleImport} style={{ flex: 2, background: '#e8fff4', border: '1.5px solid #4caf82', borderRadius: 10, padding: '11px 0', color: '#1a6a42', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>✓ Assign {canAssign} Seats</button>
+          </div>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+// Floating edit panel that follows the clicked seat vertically
+function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, onCancel, anchorY }) {
+  const panelRef = useRef(null);
+  const [top, setTop] = useState(0);
+
+  useEffect(() => {
+    if (!selData || !panelRef.current) return;
+    const panelH = panelRef.current.offsetHeight || 200;
+    const viewH = window.innerHeight;
+    const scrollY = window.scrollY;
+    // Position panel next to the clicked seat, clamped to viewport
+    let t = anchorY + scrollY - panelH / 2;
+    t = Math.max(scrollY + 12, Math.min(t, scrollY + viewH - panelH - 12));
+    setTop(t);
+  }, [selData, anchorY]);
+
+  if (!selData) return null;
+
+  return (
+    <div ref={panelRef} style={{
+      position: 'absolute',
+      top,
+      right: 16,
+      width: 230,
+      background: '#fffaf7',
+      borderRadius: 20,
+      border: '2px solid #f0c0a0',
+      padding: 18,
+      boxShadow: '0 8px 36px rgba(200,120,80,0.18)',
+      zIndex: 500,
+      transition: 'top 0.2s ease',
+    }}>
+      <div style={{ fontSize: 10, letterSpacing: 3, color: '#c49a8a', marginBottom: 12, fontWeight: 700 }}>✏️ EDITING — {selData.id}</div>
+      <input
+        value={name}
+        onChange={e => setName(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && assign()}
+        placeholder="Guest name…"
+        autoFocus
+        style={{ width: '100%', boxSizing: 'border-box', background: '#fff5f0', border: '1.5px solid #f0c0a0', borderRadius: 10, padding: '10px 14px', color: '#3a2a2a', fontSize: 14, outline: 'none', fontFamily: 'inherit', marginBottom: 12 }}
+      />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        {[
+          { label: '✓ Assign', fn: assign,    bg: '#e8fff4', border: '#4caf82', color: '#1a6a42' },
+          { label: '★ VIP',    fn: toggleVIP, bg: '#fff8e0', border: '#f0a500', color: '#7a5000' },
+          { label: '✕ Clear',  fn: clearSeat, bg: '#fff0f0', border: '#e07070', color: '#a02020' },
+          { label: 'Cancel',   fn: onCancel,  bg: '#f5f5f5', border: '#d0c0b8', color: '#806050' },
+        ].map(b => (
+          <button key={b.label} onClick={b.fn} style={{ background: b.bg, border: `1.5px solid ${b.border}`, borderRadius: 10, padding: '10px 0', color: b.color, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{b.label}</button>
+        ))}
       </div>
     </div>
   );
@@ -325,10 +327,12 @@ export default function SeatingPlan() {
   const [saveStatus, setSaveStatus] = useState('saved');
   const [showConfirm, setShowConfirm] = useState(false);
   const [showBulk, setShowBulk] = useState(false);
+  const [anchorY, setAnchorY] = useState(200);
   const [history, setHistory] = useState([]);
   const [future, setFuture] = useState([]);
   const isSaving = useRef(false);
   const isCleared = useRef(false);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     loadSeats().then(s => { setSeats(s); setLoaded(true); });
@@ -356,9 +360,7 @@ export default function SeatingPlan() {
   const undo = () => {
     if (!history.length) return;
     const prev = history[history.length - 1];
-    setHistory(h => h.slice(0, -1));
-    setFuture(f => [seats, ...f].slice(0, 10));
-    setSeats(prev);
+    setHistory(h => h.slice(0, -1)); setFuture(f => [seats, ...f].slice(0, 10)); setSeats(prev);
     setSaveStatus('saving'); isSaving.current = true;
     saveAllSeats(prev).then(() => { setSaveStatus('saved'); isSaving.current = false; }).catch(() => { setSaveStatus('error'); isSaving.current = false; });
   };
@@ -366,9 +368,7 @@ export default function SeatingPlan() {
   const redo = () => {
     if (!future.length) return;
     const next = future[0];
-    setFuture(f => f.slice(1));
-    setHistory(h => [...h, seats].slice(-10));
-    setSeats(next);
+    setFuture(f => f.slice(1)); setHistory(h => [...h, seats].slice(-10)); setSeats(next);
     setSaveStatus('saving'); isSaving.current = true;
     saveAllSeats(next).then(() => { setSaveStatus('saved'); isSaving.current = false; }).catch(() => { setSaveStatus('error'); isSaving.current = false; });
   };
@@ -376,13 +376,22 @@ export default function SeatingPlan() {
   const handleBulkImport = (assignments) => {
     pushHistory(seats);
     const updated = seats.map(s => { const m = assignments.find(a => a.id === s.id); return m ? m : s; });
-    setSeats(updated);
-    setSaveStatus('saving'); isSaving.current = true;
+    setSeats(updated); setSaveStatus('saving'); isSaving.current = true;
     saveAllSeats(assignments).then(() => { setSaveStatus('saved'); isSaving.current = false; }).catch(() => { setSaveStatus('error'); isSaving.current = false; });
   };
 
   const getSeat = (id) => seats.find(s => s.id === id);
-  const select = (id) => { if (sel === id) { setSel(null); setName(''); return; } setSel(id); setName(getSeat(id)?.name || ''); };
+
+  const select = (id, event) => {
+    if (sel === id) { setSel(null); setName(''); return; }
+    setSel(id); setName(getSeat(id)?.name || '');
+    // Capture click Y position relative to the page for floating panel
+    if (event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      setAnchorY(rect.top + rect.height / 2);
+    }
+  };
+
   const assign = () => { if (!sel) return; const seat = getSeat(sel); updateSeat({ ...seat, name, status: name ? (seat.status === 'vip' ? 'vip' : 'assigned') : 'empty' }); };
   const toggleVIP = () => { if (!sel) return; const seat = getSeat(sel); updateSeat({ ...seat, status: seat.status === 'vip' ? (seat.name ? 'assigned' : 'empty') : 'vip' }); };
   const clearSeat = () => { if (!sel) return; updateSeat({ ...getSeat(sel), name: '', status: 'empty' }); setName(''); setSel(null); };
@@ -408,10 +417,22 @@ export default function SeatingPlan() {
   );
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#fdf6f0 0%,#fdeee4 50%,#fdf0f8 100%)', fontFamily: "'Segoe UI',sans-serif", color: '#3a2a2a', padding: '28px 16px 60px' }}>
+    <div ref={containerRef} style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#fdf6f0 0%,#fdeee4 50%,#fdf0f8 100%)', fontFamily: "'Segoe UI',sans-serif", color: '#3a2a2a', padding: '28px 16px 60px', position: 'relative' }}>
 
       {showConfirm && <ConfirmDialog message="This will permanently clear all seat assignments." onConfirm={confirmClearAll} onCancel={() => setShowConfirm(false)} />}
       {showBulk && <BulkImportModal seats={seats} onClose={() => setShowBulk(false)} onImport={handleBulkImport} />}
+
+      {/* Floating editor — positioned absolutely, follows clicked seat */}
+      <FloatingEditor
+        selData={selData}
+        name={name}
+        setName={setName}
+        assign={assign}
+        toggleVIP={toggleVIP}
+        clearSeat={clearSeat}
+        onCancel={() => { setSel(null); setName(''); }}
+        anchorY={anchorY}
+      />
 
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -450,40 +471,29 @@ export default function SeatingPlan() {
 
         {/* Seating Canvas */}
         <div style={{ background: '#fffaf7', borderRadius: 24, border: '1.5px solid #f0d8cc', padding: '20px 16px 16px', boxShadow: '0 8px 40px rgba(200,120,80,0.10)' }}>
-
-          {/* Stage */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14, gap: 10 }}>
             <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg,transparent,#e0a090)', borderRadius: 2 }} />
             <div style={{ fontSize: 11, letterSpacing: 4, color: '#e07850', border: '2px solid #f0c0a0', padding: '5px 20px', borderRadius: 8, background: '#fff5f0', fontWeight: 700 }}>▼ STAGE / FRONT ▼</div>
             <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg,#e0a090,transparent)', borderRadius: 2 }} />
           </div>
 
-          {/* Top row — tighter gap */}
-          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-            {topSeats.map(s => <TopSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={() => select(s.id)} />)}
+          {/* Top row */}
+          <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+            {topSeats.map(s => <TopSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={(e) => select(s.id, e)} />)}
           </div>
 
-          {/* Left + Right columns side by side */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 24 }}>
-
-            {/* LEFT column — name to the RIGHT of icon */}
+          {/* Left + Right */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {leftSeats.map(s => (
-                <SideSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={() => select(s.id)} namePosition="right" />
-              ))}
+              {leftSeats.map(s => <SideSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={(e) => select(s.id, e)} namePosition="right" />)}
             </div>
-
-            {/* RIGHT column — name to the LEFT of icon */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {rightSeats.map(s => (
-                <SideSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={() => select(s.id)} namePosition="left" />
-              ))}
+              {rightSeats.map(s => <SideSeat key={s.id} seat={s} isSelected={sel === s.id} onClick={(e) => select(s.id, e)} namePosition="left" />)}
             </div>
-
           </div>
 
           {/* Legend */}
-          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
             {[{ label: 'Empty', color: '#c9a8a8' }, { label: 'Assigned', color: '#4caf82' }, { label: 'VIP', color: '#f0a500' }, { label: 'Selected', color: '#4080ee' }].map(l => (
               <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#a08070' }}>
                 <div style={{ width: 11, height: 11, borderRadius: 3, background: l.color, opacity: 0.8 }} />{l.label}
@@ -492,41 +502,21 @@ export default function SeatingPlan() {
           </div>
         </div>
 
-        {/* Side Panel */}
+        {/* Side Panel — bulk import + tabs only, no editor (editor is floating) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 240 }}>
 
-          {/* Bulk Import */}
           <button onClick={() => setShowBulk(true)} style={{ width: '100%', background: 'linear-gradient(90deg,#fff0ea,#fde8ff)', border: '1.5px solid #e07850', borderRadius: 14, padding: '12px 0', color: '#e07850', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 1, boxShadow: '0 4px 16px rgba(224,120,80,0.12)' }}>
             📋 BULK IMPORT NAMES
             <div style={{ fontSize: 10, color: '#c49a8a', fontWeight: 500, marginTop: 2 }}>{emptyCount} seats available</div>
           </button>
 
-          {/* Seat Editor */}
-          <div style={{ background: '#fffaf7', borderRadius: 20, border: '1.5px solid #f0d8cc', padding: 18 }}>
-            <div style={{ fontSize: 10, letterSpacing: 3, color: '#c49a8a', marginBottom: 12, fontWeight: 700 }}>
-              {selData ? `✏️ EDITING — ${selData.id}` : '👆 SELECT A SEAT'}
+          {/* Hint when no seat selected */}
+          {!selData && (
+            <div style={{ background: '#fffaf7', borderRadius: 16, border: '1.5px solid #f0d8cc', padding: '14px 16px', color: '#c4a898', fontSize: 13, lineHeight: 1.7 }}>
+              👆 Click any seat to edit it. The edit panel will float next to the seat you click.
             </div>
-            {selData ? (
-              <>
-                <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && assign()} placeholder="Guest name…"
-                  style={{ width: '100%', boxSizing: 'border-box', background: '#fff5f0', border: '1.5px solid #f0c0a0', borderRadius: 10, padding: '10px 14px', color: '#3a2a2a', fontSize: 14, outline: 'none', fontFamily: 'inherit', marginBottom: 12 }} />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {[
-                    { label: '✓ Assign', fn: assign,    bg: '#e8fff4', border: '#4caf82', color: '#1a6a42' },
-                    { label: '★ VIP',    fn: toggleVIP, bg: '#fff8e0', border: '#f0a500', color: '#7a5000' },
-                    { label: '✕ Clear',  fn: clearSeat, bg: '#fff0f0', border: '#e07070', color: '#a02020' },
-                    { label: 'Cancel',   fn: () => { setSel(null); setName(''); }, bg: '#f5f5f5', border: '#d0c0b8', color: '#806050' },
-                  ].map(b => (
-                    <button key={b.label} onClick={b.fn} style={{ background: b.bg, border: `1.5px solid ${b.border}`, borderRadius: 10, padding: '10px 0', color: b.color, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{b.label}</button>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div style={{ color: '#c4a898', fontSize: 13, lineHeight: 1.7 }}>Click any seat to assign a guest, mark as VIP, or clear.</div>
-            )}
-          </div>
+          )}
 
-          {/* Tabs */}
           <div style={{ display: 'flex', gap: 6 }}>
             {['plan', 'guests'].map(t => (
               <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: tab === t ? '#fff0ea' : '#fffaf7', border: `1.5px solid ${tab === t ? '#e07850' : '#f0d8cc'}`, borderRadius: 10, padding: '9px 0', color: tab === t ? '#e07850' : '#c49a8a', fontSize: 11, letterSpacing: 2, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'uppercase', fontWeight: 700 }}>{t}</button>
@@ -536,25 +526,18 @@ export default function SeatingPlan() {
           {tab === 'plan' && (
             <div style={{ background: '#fffaf7', borderRadius: 20, border: '1.5px solid #f0d8cc', padding: 16 }}>
               <div style={{ fontSize: 10, letterSpacing: 3, color: '#c49a8a', marginBottom: 12, fontWeight: 700 }}>LAYOUT INFO</div>
-              {[
-                { label: 'Top Row',   val: 'T1–T21', note: '21 seats' },
-                { label: 'Left Col',  val: 'L1–L15', note: '15 seats' },
-                { label: 'Right Col', val: 'R1–R15', note: '15 seats' },
-                { label: 'Total',     val: '51 seats', note: '' },
-              ].map(r => (
+              {[{ label: 'Top Row', val: 'T1–T21', note: '21 seats' }, { label: 'Left Col', val: 'L1–L15', note: '15 seats' }, { label: 'Right Col', val: 'R1–R15', note: '15 seats' }, { label: 'Total', val: '51 seats', note: '' }].map(r => (
                 <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f5e8e0', fontSize: 12 }}>
                   <span style={{ color: '#c49a8a' }}>{r.label}</span>
                   <span style={{ color: '#e07850', fontWeight: 700 }}>{r.val} <span style={{ color: '#d0b8a8', fontWeight: 400 }}>{r.note}</span></span>
                 </div>
               ))}
-              <button onClick={() => setShowConfirm(true)} style={{ marginTop: 12, width: '100%', background: '#fff0f0', border: '1.5px solid #e07070', borderRadius: 10, padding: '10px 0', color: '#a02020', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>
-                ⌫ CLEAR ALL SEATS
-              </button>
+              <button onClick={() => setShowConfirm(true)} style={{ marginTop: 12, width: '100%', background: '#fff0f0', border: '1.5px solid #e07070', borderRadius: 10, padding: '10px 0', color: '#a02020', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700 }}>⌫ CLEAR ALL SEATS</button>
             </div>
           )}
 
           {tab === 'guests' && (
-            <div style={{ background: '#fffaf7', borderRadius: 20, border: '1.5px solid #f0d8cc', padding: 16, maxHeight: 340, overflowY: 'auto' }}>
+            <div style={{ background: '#fffaf7', borderRadius: 20, border: '1.5px solid #f0d8cc', padding: 16, maxHeight: 400, overflowY: 'auto' }}>
               <div style={{ fontSize: 10, letterSpacing: 3, color: '#c49a8a', marginBottom: 10, fontWeight: 700 }}>GUEST LIST ({assigned})</div>
               {seats.filter(s => s.name).length === 0
                 ? <div style={{ color: '#d0b8a8', fontSize: 13 }}>No guests assigned yet.</div>
