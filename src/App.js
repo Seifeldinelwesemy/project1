@@ -94,6 +94,9 @@ const COLORS = {
   vip:       { body: '#f7c948', legs: '#b8860b', border: '#f0a500', text: '#7a4f00', bg: '#fff8e1' },
   selected:  { body: '#7aabf7', legs: '#2355a0', border: '#4080ee', text: '#1a3a7a', bg: '#e8f0ff' },
   duplicate: { body: '#f7a0a0', legs: '#a03030', border: '#e05050', text: '#7a1010', bg: '#fff0f0' },
+  // NEW: swap states
+  swapSource:  { body: '#f7a84a', legs: '#a05c00', border: '#e07800', text: '#7a3a00', bg: '#fff3e0' },
+  swapTarget:  { body: '#b87af7', legs: '#5a20a0', border: '#8040e0', text: '#3a1a7a', bg: '#f0e8ff' },
 };
 
 function SeatIcon({ status, size = 36 }) {
@@ -112,19 +115,24 @@ function SeatIcon({ status, size = 36 }) {
 
 const TOP_W = 76, TOP_H = 110;
 
-function TopSeat({ seat, isSelected, isDuplicate, onClick }) {
-  const status = isSelected ? 'selected' : isDuplicate ? 'duplicate' : seat.status;
+function TopSeat({ seat, isSelected, isDuplicate, isSwapSource, isSwapTarget, swapMode, onClick }) {
+  let status = isSwapSource ? 'swapSource' : isSwapTarget ? 'swapTarget' : isSelected ? 'selected' : isDuplicate ? 'duplicate' : seat.status;
   const c = COLORS[status] || COLORS.empty;
+
+  // In swap mode, pulse eligible seats (assigned ones that aren't the source)
+  const isPulsable = swapMode && !isSwapSource && seat.status !== 'empty';
+
   return (
     <div onClick={onClick} style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       cursor: 'pointer', width: TOP_W, height: TOP_H, flexShrink: 0,
       padding: '5px 4px 5px', borderRadius: 10, boxSizing: 'border-box',
-      background: isSelected ? '#ddeeff' : isDuplicate ? '#fff0f0' : seat.status === 'empty' ? 'transparent' : c.bg,
-      border: isSelected ? '2px solid #4080ee' : isDuplicate ? '2px solid #e05050' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
-      boxShadow: isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : isDuplicate ? '0 2px 10px rgba(224,80,80,0.25)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+      background: isSwapSource ? '#fff3e0' : isSwapTarget ? '#f0e8ff' : isSelected ? '#ddeeff' : isDuplicate ? '#fff0f0' : seat.status === 'empty' ? 'transparent' : c.bg,
+      border: isSwapSource ? '2px solid #e07800' : isSwapTarget ? '2px dashed #8040e0' : isSelected ? '2px solid #4080ee' : isDuplicate ? '2px solid #e05050' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
+      boxShadow: isSwapSource ? '0 4px 18px rgba(224,120,0,0.35)' : isSwapTarget ? '0 4px 18px rgba(128,64,224,0.25)' : isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : isDuplicate ? '0 2px 10px rgba(224,80,80,0.25)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
       transition: 'all 0.15s ease',
-      transform: isSelected ? 'translateY(-2px) scale(1.04)' : 'scale(1)',
+      transform: isSwapSource ? 'translateY(-3px) scale(1.06)' : isSelected ? 'translateY(-2px) scale(1.04)' : 'scale(1)',
+      animation: isPulsable ? 'swapPulse 1.4s ease-in-out infinite' : 'none',
       overflow: 'hidden', justifyContent: 'flex-start',
     }}>
       <SeatIcon status={status} size={34} />
@@ -137,29 +145,35 @@ function TopSeat({ seat, isSelected, isDuplicate, onClick }) {
         )}
         {isDuplicate && !isSelected && <div style={{ fontSize: 9, color: '#e05050', fontWeight: 700, marginTop: 1 }}>⚠ DUP</div>}
         {seat.status === 'vip' && !seat.name && <div style={{ fontSize: 9, color: '#f0a500' }}>★</div>}
+        {isSwapTarget && <div style={{ fontSize: 9, color: '#8040e0', fontWeight: 700, marginTop: 2 }}>↔ TAP</div>}
       </div>
     </div>
   );
 }
 
-function SideSeat({ seat, isSelected, isDuplicate, onClick, namePosition }) {
-  const status = isSelected ? 'selected' : isDuplicate ? 'duplicate' : seat.status;
+function SideSeat({ seat, isSelected, isDuplicate, isSwapSource, isSwapTarget, swapMode, onClick, namePosition }) {
+  let status = isSwapSource ? 'swapSource' : isSwapTarget ? 'swapTarget' : isSelected ? 'selected' : isDuplicate ? 'duplicate' : seat.status;
   const c = COLORS[status] || COLORS.empty;
+  const isPulsable = swapMode && !isSwapSource && seat.status !== 'empty';
+
   const nameBlock = (
     <div style={{ flex: 1, fontSize: 13, color: seat.name ? c.text : 'transparent', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center', minWidth: 0 }}>
       {seat.name || '·'}
       {isDuplicate && <span style={{ color: '#e05050', marginLeft: 4, fontSize: 10 }}>⚠</span>}
       {seat.status === 'vip' && seat.name && !isDuplicate && <span style={{ color: '#f0a500', marginLeft: 3 }}>★</span>}
+      {isSwapTarget && <span style={{ color: '#8040e0', marginLeft: 4, fontSize: 10 }}>↔</span>}
     </div>
   );
   return (
     <div onClick={onClick} style={{
       display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
       cursor: 'pointer', padding: '2px 6px', borderRadius: 10,
-      background: isSelected ? '#ddeeff' : isDuplicate ? '#fff0f0' : seat.status === 'empty' ? 'transparent' : c.bg,
-      border: isSelected ? '2px solid #4080ee' : isDuplicate ? '2px solid #e05050' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
-      boxShadow: isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : isDuplicate ? '0 2px 10px rgba(224,80,80,0.2)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-      transition: 'all 0.15s ease', transform: isSelected ? 'scale(1.03)' : 'scale(1)',
+      background: isSwapSource ? '#fff3e0' : isSwapTarget ? '#f0e8ff' : isSelected ? '#ddeeff' : isDuplicate ? '#fff0f0' : seat.status === 'empty' ? 'transparent' : c.bg,
+      border: isSwapSource ? '2px solid #e07800' : isSwapTarget ? '2px dashed #8040e0' : isSelected ? '2px solid #4080ee' : isDuplicate ? '2px solid #e05050' : seat.status === 'empty' ? '2px solid transparent' : `2px solid ${c.border}`,
+      boxShadow: isSwapSource ? '0 4px 18px rgba(224,120,0,0.3)' : isSwapTarget ? '0 4px 18px rgba(128,64,224,0.2)' : isSelected ? '0 4px 16px rgba(64,128,238,0.25)' : isDuplicate ? '0 2px 10px rgba(224,80,80,0.2)' : seat.status !== 'empty' ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+      transition: 'all 0.15s ease',
+      transform: isSwapSource ? 'scale(1.04)' : isSelected ? 'scale(1.03)' : 'scale(1)',
+      animation: isPulsable ? 'swapPulse 1.4s ease-in-out infinite' : 'none',
       height: 50, width: 220,
     }}>
       {namePosition === 'left' && nameBlock}
@@ -168,6 +182,69 @@ function SideSeat({ seat, isSelected, isDuplicate, onClick, namePosition }) {
         <div style={{ fontSize: 10, fontWeight: 700, color: c.text }}>{seat.id}</div>
       </div>
       {namePosition === 'right' && nameBlock}
+    </div>
+  );
+}
+
+// ─── Swap Banner ──────────────────────────────────────────────────────────────
+function SwapBanner({ swapSource, seats, onCancel }) {
+  const sourceSeat = seats.find(s => s.id === swapSource);
+  return (
+    <div style={{
+      position: 'sticky', top: 0, zIndex: 400,
+      background: 'linear-gradient(90deg, #fff3e0, #f0e8ff)',
+      border: '2px solid #e07800',
+      borderRadius: 16, padding: '12px 20px',
+      marginBottom: 16,
+      display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+      boxShadow: '0 6px 24px rgba(224,120,0,0.18)',
+      animation: 'slideDown 0.25s ease',
+    }}>
+      <div style={{ fontSize: 22 }}>↔️</div>
+      <div style={{ flex: 1, minWidth: 180 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#7a3a00', letterSpacing: 0.5 }}>
+          SWAP MODE — {swapSource} selected
+        </div>
+        <div style={{ fontSize: 11, color: '#c07030', marginTop: 2 }}>
+          {sourceSeat?.name
+            ? <>Moving <strong>{sourceSeat.name}</strong> · Now click any other seat to swap</>
+            : <>Empty seat selected · Click another seat to move its guest here</>}
+        </div>
+      </div>
+      <button onClick={onCancel} style={{
+        background: '#fff', border: '1.5px solid #e07800', borderRadius: 10,
+        padding: '7px 16px', color: '#a04000', fontWeight: 700, fontSize: 12,
+        cursor: 'pointer', fontFamily: 'inherit',
+      }}>✕ Cancel</button>
+    </div>
+  );
+}
+
+// ─── Swap Confirm Toast ───────────────────────────────────────────────────────
+function SwapToast({ fromSeat, toSeat, onDismiss }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 3000);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div style={{
+      position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+      background: 'linear-gradient(90deg, #1a3a1a, #0a2a3a)',
+      color: '#fff', borderRadius: 16, padding: '14px 24px',
+      display: 'flex', alignItems: 'center', gap: 10,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+      zIndex: 600, fontSize: 13, fontWeight: 600,
+      animation: 'toastIn 0.3s ease',
+      whiteSpace: 'nowrap',
+    }}>
+      <span style={{ fontSize: 18 }}>✅</span>
+      <span>
+        Swapped <span style={{ color: '#7ef7b4' }}>{fromSeat.id}</span>
+        {fromSeat.name ? ` (${fromSeat.name})` : ' (empty)'}
+        {' ↔ '}
+        <span style={{ color: '#b87af7' }}>{toSeat.id}</span>
+        {toSeat.name ? ` (${toSeat.name})` : ' (empty)'}
+      </span>
     </div>
   );
 }
@@ -242,12 +319,12 @@ function BulkImportModal({ seats, onClose, onImport }) {
   );
 }
 
-function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, onCancel, anchorY, duplicateOf }) {
+function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, onCancel, onStartSwap, anchorY, duplicateOf }) {
   const panelRef = useRef(null);
   const [top, setTop] = useState(0);
   useEffect(() => {
     if (!selData || !panelRef.current) return;
-    const panelH = panelRef.current.offsetHeight || 220;
+    const panelH = panelRef.current.offsetHeight || 260;
     const viewH = window.innerHeight; const scrollY = window.scrollY;
     let t = anchorY + scrollY - panelH / 2;
     t = Math.max(scrollY + 12, Math.min(t, scrollY + viewH - panelH - 12));
@@ -262,12 +339,22 @@ function FloatingEditor({ selData, name, setName, assign, toggleVIP, clearSeat, 
         style={{ width: '100%', boxSizing: 'border-box', background: duplicateOf ? '#fff5f5' : '#fff5f0', border: `1.5px solid ${duplicateOf ? '#e07070' : '#f0c0a0'}`, borderRadius: 10, padding: '10px 14px', color: '#3a2a2a', fontSize: 14, outline: 'none', fontFamily: 'inherit', marginBottom: 10 }} />
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         {[
-          { label: '✓ Assign', fn: assign,    bg: duplicateOf ? '#fff5f5' : '#e8fff4', border: duplicateOf ? '#e07070' : '#4caf82', color: duplicateOf ? '#a02020' : '#1a6a42' },
-          { label: '★ VIP',    fn: toggleVIP, bg: '#fff8e0', border: '#f0a500', color: '#7a5000' },
-          { label: '✕ Clear',  fn: clearSeat, bg: '#fff0f0', border: '#e07070', color: '#a02020' },
-          { label: 'Cancel',   fn: onCancel,  bg: '#f5f5f5', border: '#d0c0b8', color: '#806050' },
+          { label: '✓ Assign',  fn: assign,         bg: duplicateOf ? '#fff5f5' : '#e8fff4', border: duplicateOf ? '#e07070' : '#4caf82', color: duplicateOf ? '#a02020' : '#1a6a42' },
+          { label: '★ VIP',     fn: toggleVIP,      bg: '#fff8e0', border: '#f0a500', color: '#7a5000' },
+          { label: '✕ Clear',   fn: clearSeat,      bg: '#fff0f0', border: '#e07070', color: '#a02020' },
+          { label: 'Cancel',    fn: onCancel,        bg: '#f5f5f5', border: '#d0c0b8', color: '#806050' },
         ].map(b => <button key={b.label} onClick={b.fn} style={{ background: b.bg, border: `1.5px solid ${b.border}`, borderRadius: 10, padding: '10px 0', color: b.color, fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>{b.label}</button>)}
       </div>
+      {/* Swap button — full width below the grid */}
+      <button onClick={onStartSwap} style={{
+        marginTop: 8, width: '100%',
+        background: 'linear-gradient(90deg, #fff3e0, #f0e8ff)',
+        border: '1.5px solid #c070e0',
+        borderRadius: 10, padding: '10px 0',
+        color: '#6020a0', fontWeight: 700, fontSize: 12,
+        cursor: 'pointer', fontFamily: 'inherit',
+        letterSpacing: 0.5,
+      }}>↔ Swap Seat</button>
     </div>
   );
 }
@@ -280,27 +367,15 @@ function PrintView({ seats, onClose }) {
   const assigned   = seats.filter(s => s.name).length;
   const vips       = seats.filter(s => s.status === 'vip').length;
   const printDate  = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-
   const handlePrint = () => window.print();
-
   const cellStyle = (seat) => ({
-    border: '1px solid #ccc',
-    borderRadius: 6,
-    padding: '4px 6px',
-    textAlign: 'center',
+    border: '1px solid #ccc', borderRadius: 6, padding: '4px 6px', textAlign: 'center',
     background: seat.status === 'vip' ? '#fffde7' : seat.name ? '#f0faf5' : '#fafafa',
-    minWidth: 70,
-    minHeight: 52,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
+    minWidth: 70, minHeight: 52, display: 'flex', flexDirection: 'column',
+    alignItems: 'center', justifyContent: 'center', gap: 2,
   });
-
   return (
     <>
-      {/* Print-specific CSS injected into head */}
       <style>{`
         @media print {
           body > *:not(#print-root) { display: none !important; }
@@ -309,10 +384,7 @@ function PrintView({ seats, onClose }) {
           @page { margin: 12mm; size: A4 landscape; }
         }
       `}</style>
-
       <div id="print-root" style={{ position: 'fixed', inset: 0, background: '#fff', zIndex: 2000, overflowY: 'auto', padding: '24px 32px', fontFamily: "'Segoe UI', Arial, sans-serif", color: '#111' }}>
-
-        {/* Toolbar — hidden on print */}
         <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <div style={{ fontSize: 14, color: '#666' }}>Preview — looks exactly like this when printed (A4 Landscape)</div>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -320,21 +392,15 @@ function PrintView({ seats, onClose }) {
             <button onClick={handlePrint} style={{ background: '#1a1a2e', border: 'none', borderRadius: 10, padding: '9px 24px', fontSize: 13, cursor: 'pointer', fontWeight: 700, color: '#fff', letterSpacing: 1 }}>🖨 Print</button>
           </div>
         </div>
-
-        {/* Print header */}
         <div style={{ textAlign: 'center', marginBottom: 16, borderBottom: '2px solid #111', paddingBottom: 12 }}>
           <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase' }}>SEATING PLAN</div>
           <div style={{ fontSize: 11, color: '#555', marginTop: 4, letterSpacing: 1 }}>
             Printed: {printDate} · Total: {seats.length} seats · Assigned: {assigned} · VIP: {vips} · Empty: {seats.length - assigned}
           </div>
         </div>
-
-        {/* Stage label */}
         <div style={{ textAlign: 'center', marginBottom: 14 }}>
           <div style={{ display: 'inline-block', border: '2px solid #111', borderRadius: 6, padding: '4px 32px', fontSize: 12, fontWeight: 700, letterSpacing: 4, color: '#111' }}>▼ STAGE / FRONT ▼</div>
         </div>
-
-        {/* Top row */}
         <div style={{ display: 'flex', gap: 3, justifyContent: 'center', marginBottom: 18, flexWrap: 'nowrap' }}>
           {topSeats.map(s => (
             <div key={s.id} style={cellStyle(s)}>
@@ -345,10 +411,7 @@ function PrintView({ seats, onClose }) {
             </div>
           ))}
         </div>
-
-        {/* Left + Right side columns */}
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 24 }}>
-          {/* Left column */}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: '#888', marginBottom: 6, textAlign: 'center' }}>LEFT SECTION</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -361,11 +424,7 @@ function PrintView({ seats, onClose }) {
               ))}
             </div>
           </div>
-
-          {/* Center divider */}
           <div style={{ width: 1, background: '#ddd', alignSelf: 'stretch' }} />
-
-          {/* Right column */}
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 2, color: '#888', marginBottom: 6, textAlign: 'center' }}>RIGHT SECTION</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -379,8 +438,6 @@ function PrintView({ seats, onClose }) {
             </div>
           </div>
         </div>
-
-        {/* Footer */}
         <div style={{ marginTop: 20, borderTop: '1px solid #ddd', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#aaa' }}>
           <span>□ Empty &nbsp;&nbsp; ■ Assigned &nbsp;&nbsp; ★ VIP</span>
           <span>Generated by المنصة الرئيسية</span>
@@ -406,6 +463,75 @@ export default function SeatingPlan() {
   const [anchorY, setAnchorY] = useState(200);
   const [history, setHistory] = useState([]);
   const [future, setFuture] = useState([]);
+
+  // ── NEW: Swap state ──────────────────────────────────────────────────────
+  const [swapSource, setSwapSource] = useState(null);   // seat id of first selection
+  const [swapToast, setSwapToast] = useState(null);     // { fromSeat, toSeat }
+  // ────────────────────────────────────────────────────────────────────────
+
+  // ── Online presence via Supabase Realtime ─────────────────────────────
+  const [onlineCount, setOnlineCount] = useState(1);
+  const presenceChannelRef = useRef(null);
+  useEffect(() => {
+    // Generate a stable random user ID for this session
+    const userId = Math.random().toString(36).slice(2);
+    // Use Supabase Realtime REST-style presence via broadcast channel
+    const channelName = 'seating-presence';
+    const REALTIME_URL = `${SUPABASE_URL.replace('https://', 'wss://')}/realtime/v1/websocket?apikey=${SUPABASE_KEY}&vsn=1.0.0`;
+
+    let ws;
+    let heartbeat;
+    let presenceMap = {};
+    const myKey = userId;
+
+    const send = (msg) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify(msg)); };
+
+    const connect = () => {
+      ws = new WebSocket(REALTIME_URL);
+      ws.onopen = () => {
+        // Join the channel
+        send({ topic: `realtime:${channelName}`, event: 'phx_join', payload: { config: { presence: { key: myKey }, broadcast: { self: true } } }, ref: '1' });
+        // Broadcast our presence immediately
+        setTimeout(() => {
+          send({ topic: `realtime:${channelName}`, event: 'broadcast', payload: { type: 'broadcast', event: 'presence', payload: { userId: myKey, ts: Date.now() } }, ref: '2' });
+        }, 500);
+        // Heartbeat every 20s
+        heartbeat = setInterval(() => {
+          send({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'hb' });
+          send({ topic: `realtime:${channelName}`, event: 'broadcast', payload: { type: 'broadcast', event: 'presence', payload: { userId: myKey, ts: Date.now() } }, ref: 'hb2' });
+        }, 20000);
+      };
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.event === 'broadcast' && msg.payload?.event === 'presence') {
+            const { userId: uid, ts } = msg.payload.payload || {};
+            if (uid) { presenceMap[uid] = ts; }
+            // Expire entries older than 50s
+            const now = Date.now();
+            Object.keys(presenceMap).forEach(k => { if (now - presenceMap[k] > 50000) delete presenceMap[k]; });
+            // Always count self
+            presenceMap[myKey] = now;
+            setOnlineCount(Object.keys(presenceMap).length);
+          }
+          if (msg.event === 'presence_state' || msg.event === 'presence_diff') {
+            // Supabase presence native support
+            const state = msg.payload?.joins || {};
+            presenceMap = { ...presenceMap, ...state };
+            presenceMap[myKey] = Date.now();
+            setOnlineCount(Object.keys(presenceMap).length);
+          }
+        } catch {}
+      };
+      ws.onclose = () => { clearInterval(heartbeat); setTimeout(connect, 3000); };
+    };
+
+    connect();
+    presenceChannelRef.current = { disconnect: () => { clearInterval(heartbeat); ws?.close(); } };
+    return () => presenceChannelRef.current?.disconnect();
+  }, []);
+  // ────────────────────────────────────────────────────────────────────────
+
   const isSaving = useRef(false);
   const isCleared = useRef(false);
 
@@ -429,7 +555,6 @@ export default function SeatingPlan() {
   };
 
   const pushHistory = (cur) => { setHistory(prev => { const next = [...prev, cur]; return next.length > 10 ? next.slice(-10) : next; }); setFuture([]); };
-
   const markSaved = () => { const now = new Date(); setLastSaved(now); setLastSavedDisplay(formatTimestamp(now)); setSaveStatus('saved'); isSaving.current = false; };
 
   const updateSeat = (updatedSeat) => {
@@ -442,16 +567,58 @@ export default function SeatingPlan() {
     });
   };
 
+  // ── NEW: Execute swap ────────────────────────────────────────────────────
+  const executeSwap = (idA, idB) => {
+    setSeats(prev => {
+      pushHistory(prev);
+      const seatA = prev.find(s => s.id === idA);
+      const seatB = prev.find(s => s.id === idB);
+      const newA = { ...seatA, name: seatB.name, status: seatB.status };
+      const newB = { ...seatB, name: seatA.name, status: seatA.status };
+      const next = prev.map(s => s.id === idA ? newA : s.id === idB ? newB : s);
+      setSaveStatus('saving'); isSaving.current = true;
+      Promise.all([saveSeat(newA), saveSeat(newB)]).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; });
+      setSwapToast({ fromSeat: seatA, toSeat: seatB });
+      return next;
+    });
+    setSwapSource(null);
+    setSel(null);
+    setName('');
+  };
+  // ────────────────────────────────────────────────────────────────────────
+
   const undo = () => { if (!history.length) return; const prev = history[history.length - 1]; setHistory(h => h.slice(0, -1)); setFuture(f => [seats, ...f].slice(0, 10)); setSeats(prev); setSaveStatus('saving'); isSaving.current = true; saveAllSeats(prev).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
   const redo = () => { if (!future.length) return; const next = future[0]; setFuture(f => f.slice(1)); setHistory(h => [...h, seats].slice(-10)); setSeats(next); setSaveStatus('saving'); isSaving.current = true; saveAllSeats(next).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
   const handleBulkImport = (assignments) => { pushHistory(seats); const updated = seats.map(s => { const m = assignments.find(a => a.id === s.id); return m ? m : s; }); setSeats(updated); setSaveStatus('saving'); isSaving.current = true; saveAllSeats(assignments).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
 
   const getSeat = (id) => seats.find(s => s.id === id);
-  const select = (id, event) => { if (sel === id) { setSel(null); setName(''); return; } setSel(id); setName(getSeat(id)?.name || ''); if (event) { const rect = event.currentTarget.getBoundingClientRect(); setAnchorY(rect.top + rect.height / 2); } };
+
+  // ── MODIFIED: click handler handles swap second-click ──────────────────
+  const select = (id, event) => {
+    // If in swap mode and clicking a different seat → execute swap
+    if (swapSource && id !== swapSource) {
+      executeSwap(swapSource, id);
+      return;
+    }
+    // If clicking same seat while in swap mode → cancel swap
+    if (swapSource && id === swapSource) {
+      setSwapSource(null);
+      setSel(null);
+      setName('');
+      return;
+    }
+    // Normal select / deselect
+    if (sel === id) { setSel(null); setName(''); return; }
+    setSel(id);
+    setName(getSeat(id)?.name || '');
+    if (event) { const rect = event.currentTarget.getBoundingClientRect(); setAnchorY(rect.top + rect.height / 2); }
+  };
+  // ────────────────────────────────────────────────────────────────────────
+
   const assign = () => { if (!sel) return; const seat = getSeat(sel); updateSeat({ ...seat, name, status: name ? (seat.status === 'vip' ? 'vip' : 'assigned') : 'empty' }); };
   const toggleVIP = () => { if (!sel) return; const seat = getSeat(sel); updateSeat({ ...seat, status: seat.status === 'vip' ? (seat.name ? 'assigned' : 'empty') : 'vip' }); };
   const clearSeat = () => { if (!sel) return; updateSeat({ ...getSeat(sel), name: '', status: 'empty' }); setName(''); setSel(null); };
-  const confirmClearAll = () => { setShowConfirm(false); pushHistory(seats); setSeats(buildSeats()); setSel(null); setName(''); setSaveStatus('saving'); isSaving.current = true; isCleared.current = true; clearAllSeats().then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
+  const confirmClearAll = () => { setShowConfirm(false); pushHistory(seats); setSeats(buildSeats()); setSel(null); setName(''); setSwapSource(null); setSaveStatus('saving'); isSaving.current = true; isCleared.current = true; clearAllSeats().then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
 
   const topSeats   = seats.filter(s => s.row === 'top');
   const leftSeats  = seats.filter(s => s.row === 'left');
@@ -469,10 +636,41 @@ export default function SeatingPlan() {
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#fdf6f0 0%,#fdeee4 50%,#fdf0f8 100%)', fontFamily: "'Segoe UI',sans-serif", color: '#3a2a2a', padding: '28px 16px 60px', position: 'relative' }}>
 
+      {/* CSS animations */}
+      <style>{`
+        @keyframes swapPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(128,64,224,0.3); }
+          50% { box-shadow: 0 0 0 6px rgba(128,64,224,0.12); }
+        }
+        @keyframes slideDown {
+          from { opacity: 0; transform: translateY(-10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes toastIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+        @keyframes onlinePulse {
+          0%, 100% { box-shadow: 0 0 0 2px rgba(76,175,130,0.3); }
+          50%       { box-shadow: 0 0 0 5px rgba(76,175,130,0.08); }
+        }
+      `}</style>
+
       {showConfirm && <ConfirmDialog message="This will permanently clear all seat assignments." onConfirm={confirmClearAll} onCancel={() => setShowConfirm(false)} />}
       {showBulk && <BulkImportModal seats={seats} onClose={() => setShowBulk(false)} onImport={handleBulkImport} />}
       {showPrint && <PrintView seats={seats} onClose={() => setShowPrint(false)} />}
-      <FloatingEditor selData={selData} name={name} setName={setName} assign={assign} toggleVIP={toggleVIP} clearSeat={clearSeat} onCancel={() => { setSel(null); setName(''); }} anchorY={anchorY} duplicateOf={currentDupOf} />
+      {swapToast && <SwapToast fromSeat={swapToast.fromSeat} toSeat={swapToast.toSeat} onDismiss={() => setSwapToast(null)} />}
+
+      {/* Floating editor — hidden during swap mode */}
+      {!swapSource && (
+        <FloatingEditor
+          selData={selData} name={name} setName={setName}
+          assign={assign} toggleVIP={toggleVIP} clearSeat={clearSeat}
+          onCancel={() => { setSel(null); setName(''); }}
+          onStartSwap={() => { if (sel) { setSwapSource(sel); setSel(null); setName(''); } }}
+          anchorY={anchorY} duplicateOf={currentDupOf}
+        />
+      )}
 
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
@@ -484,12 +682,25 @@ export default function SeatingPlan() {
             {saveStatus === 'saved' ? '✓ SAVED' : saveStatus === 'saving' ? '● SAVING...' : '✕ SAVE ERROR'}
           </div>
           {lastSavedDisplay && saveStatus === 'saved' && <div style={{ fontSize: 11, color: '#b8a090', letterSpacing: 1 }}>· {lastSavedDisplay}</div>}
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: '#f0fff8', border: '1.5px solid #4caf82',
+            borderRadius: 20, padding: '3px 10px',
+            fontSize: 11, fontWeight: 700, color: '#1a6a42',
+          }}>
+            <span style={{
+              display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+              background: '#4caf82',
+              boxShadow: '0 0 0 2px rgba(76,175,130,0.3)',
+              animation: 'onlinePulse 2s ease-in-out infinite',
+            }} />
+            {onlineCount} online
+          </div>
         </div>
         {dupCount > 0 && <div style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff0f0', border: '1.5px solid #e05050', borderRadius: 10, padding: '6px 14px', fontSize: 12, color: '#a02020', fontWeight: 600 }}>⚠️ {dupCount} duplicate name{dupCount > 1 ? 's' : ''} detected</div>}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
           <button onClick={undo} disabled={!history.length} style={{ background: history.length ? '#eeeeff' : '#f5f5f5', border: `1.5px solid ${history.length ? '#6060e0' : '#ddd'}`, borderRadius: 10, padding: '7px 18px', color: history.length ? '#4040c0' : '#bbb', fontWeight: 700, fontSize: 12, cursor: history.length ? 'pointer' : 'default', fontFamily: 'inherit' }}>↩ Undo {history.length > 0 ? `(${history.length})` : ''}</button>
           <button onClick={redo} disabled={!future.length} style={{ background: future.length ? '#eeeeff' : '#f5f5f5', border: `1.5px solid ${future.length ? '#6060e0' : '#ddd'}`, borderRadius: 10, padding: '7px 18px', color: future.length ? '#4040c0' : '#bbb', fontWeight: 700, fontSize: 12, cursor: future.length ? 'pointer' : 'default', fontFamily: 'inherit' }}>Redo {future.length > 0 ? `(${future.length})` : ''} ↪</button>
-          {/* 🖨 Print button */}
           <button onClick={() => setShowPrint(true)} style={{ background: '#1a1a2e', border: '1.5px solid #1a1a2e', borderRadius: 10, padding: '7px 20px', color: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', letterSpacing: 1 }}>🖨 Print</button>
         </div>
       </div>
@@ -516,26 +727,87 @@ export default function SeatingPlan() {
       <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
 
         {/* Seating Canvas */}
-        <div style={{ background: '#fffaf7', borderRadius: 24, border: '1.5px solid #f0d8cc', padding: '18px 14px 14px', boxShadow: '0 8px 40px rgba(200,120,80,0.10)' }}>
+        <div style={{ background: '#fffaf7', borderRadius: 24, border: `1.5px solid ${swapSource ? '#e07800' : '#f0d8cc'}`, padding: '18px 14px 14px', boxShadow: swapSource ? '0 8px 40px rgba(224,120,0,0.15)' : '0 8px 40px rgba(200,120,80,0.10)', transition: 'border-color 0.2s, box-shadow 0.2s' }}>
+
+          {/* Swap banner inside canvas */}
+          {swapSource && <SwapBanner swapSource={swapSource} seats={seats} onCancel={() => { setSwapSource(null); setSel(null); setName(''); }} />}
+
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, gap: 10 }}>
             <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg,transparent,#e0a090)', borderRadius: 2 }} />
             <div style={{ fontSize: 11, letterSpacing: 4, color: '#e07850', border: '2px solid #f0c0a0', padding: '5px 20px', borderRadius: 8, background: '#fff5f0', fontWeight: 700, whiteSpace: 'nowrap' }}>▼ STAGE / FRONT ▼</div>
             <div style={{ flex: 1, height: 2, background: 'linear-gradient(90deg,#e0a090,transparent)', borderRadius: 2 }} />
           </div>
+
           <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-            {topSeats.map(s => <TopSeat key={s.id} seat={s} isSelected={sel === s.id} isDuplicate={!!dupMap[s.id]} onClick={(e) => select(s.id, e)} />)}
+            {topSeats.map(s => (
+              <div key={s.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                <TopSeat
+                  seat={s}
+                  isSelected={!swapSource && sel === s.id}
+                  isDuplicate={!!dupMap[s.id]}
+                  isSwapSource={swapSource === s.id}
+                  isSwapTarget={!!swapSource && swapSource !== s.id}
+                  swapMode={!!swapSource}
+                  onClick={(e) => select(s.id, e)}
+                />
+                {s.id === 'T11' && (
+                  <div style={{
+                    fontSize: 11, fontWeight: 900, color: '#111',
+                    letterSpacing: 2, textTransform: 'uppercase',
+                    background: '#f5f0ea',
+                    border: '1.5px solid #c0a898',
+                    borderRadius: 6, padding: '3px 8px',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
+                  }}>CENTER</div>
+                )}
+              </div>
+            ))}
           </div>
+
           <div style={{ height: 20 }} />
+
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {leftSeats.map(s => <SideSeat key={s.id} seat={s} isSelected={sel === s.id} isDuplicate={!!dupMap[s.id]} onClick={(e) => select(s.id, e)} namePosition="right" />)}
+              {leftSeats.map(s => (
+                <SideSeat
+                  key={s.id} seat={s}
+                  isSelected={!swapSource && sel === s.id}
+                  isDuplicate={!!dupMap[s.id]}
+                  isSwapSource={swapSource === s.id}
+                  isSwapTarget={!!swapSource && swapSource !== s.id}
+                  swapMode={!!swapSource}
+                  onClick={(e) => select(s.id, e)}
+                  namePosition="right"
+                />
+              ))}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-              {rightSeats.map(s => <SideSeat key={s.id} seat={s} isSelected={sel === s.id} isDuplicate={!!dupMap[s.id]} onClick={(e) => select(s.id, e)} namePosition="left" />)}
+              {rightSeats.map(s => (
+                <SideSeat
+                  key={s.id} seat={s}
+                  isSelected={!swapSource && sel === s.id}
+                  isDuplicate={!!dupMap[s.id]}
+                  isSwapSource={swapSource === s.id}
+                  isSwapTarget={!!swapSource && swapSource !== s.id}
+                  swapMode={!!swapSource}
+                  onClick={(e) => select(s.id, e)}
+                  namePosition="left"
+                />
+              ))}
             </div>
           </div>
+
           <div style={{ display: 'flex', gap: 14, justifyContent: 'center', marginTop: 14, flexWrap: 'wrap' }}>
-            {[{ label: 'Empty', color: '#c9a8a8' }, { label: 'Assigned', color: '#4caf82' }, { label: 'VIP', color: '#f0a500' }, { label: 'Selected', color: '#4080ee' }, { label: 'Duplicate', color: '#e05050' }].map(l => (
+            {[
+              { label: 'Empty',     color: '#c9a8a8' },
+              { label: 'Assigned',  color: '#4caf82' },
+              { label: 'VIP',       color: '#f0a500' },
+              { label: 'Selected',  color: '#4080ee' },
+              { label: 'Duplicate', color: '#e05050' },
+              { label: 'Swap From', color: '#e07800' },
+              { label: 'Swap To',   color: '#8040e0' },
+            ].map(l => (
               <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#a08070' }}>
                 <div style={{ width: 11, height: 11, borderRadius: 3, background: l.color, opacity: 0.8 }} />{l.label}
               </div>
@@ -549,7 +821,7 @@ export default function SeatingPlan() {
             📋 BULK IMPORT NAMES
             <div style={{ fontSize: 10, color: '#c49a8a', fontWeight: 500, marginTop: 2 }}>{emptyCount} seats available</div>
           </button>
-          {!selData && <div style={{ background: '#fffaf7', borderRadius: 16, border: '1.5px solid #f0d8cc', padding: '14px 16px', color: '#c4a898', fontSize: 13, lineHeight: 1.7 }}>👆 Click any seat to edit it.</div>}
+          {!selData && !swapSource && <div style={{ background: '#fffaf7', borderRadius: 16, border: '1.5px solid #f0d8cc', padding: '14px 16px', color: '#c4a898', fontSize: 13, lineHeight: 1.7 }}>👆 Click any seat to edit it.<br/><span style={{ fontSize: 12 }}>Then tap <strong style={{ color: '#8040e0' }}>↔ Swap Seat</strong> to swap two seats.</span></div>}
           <div style={{ display: 'flex', gap: 6 }}>
             {['plan', 'guests'].map(t => <button key={t} onClick={() => setTab(t)} style={{ flex: 1, background: tab === t ? '#fff0ea' : '#fffaf7', border: `1.5px solid ${tab === t ? '#e07850' : '#f0d8cc'}`, borderRadius: 10, padding: '9px 0', color: tab === t ? '#e07850' : '#c49a8a', fontSize: 11, letterSpacing: 2, cursor: 'pointer', fontFamily: 'inherit', textTransform: 'uppercase', fontWeight: 700 }}>{t}</button>)}
           </div>
