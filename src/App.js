@@ -489,7 +489,7 @@ export default function SeatingPlan() {
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <div style={{ fontSize: 11, letterSpacing: 6, color: '#c49a8a', textTransform: 'uppercase', marginBottom: 6 }}>Event Seating System</div>
-        <h1 style={{ margin: 0, fontSize: 34, fontWeight: 900, letterSpacing: '-1px', background: 'linear-gradient(90deg,#e07850,#d050a0,#6060e0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SEAT PLANNER</h1>
+        <h1 style={{ margin: 0, fontSize: 34, fontWeight: 900, letterSpacing: '-1px', background: 'linear-gradient(90deg,#e07850,#d050a0,#6060e0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}> المنصة الرئيسية</h1>
         <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 6, letterSpacing: 3 }}>21 TOP · 15 LEFT · 15 RIGHT · {seats.length} SEATS</div>
 
         {/* Save status + last saved timestamp */}
