@@ -9,36 +9,47 @@ const HEADERS = {
   Authorization: `Bearer ${SUPABASE_KEY}`,
 };
 
-const TOP = 21, SIDE = 15;
+const DEFAULT_TOP = 21, DEFAULT_SIDE = 15;
+const MIN_SEATS = 1, MAX_TOP = 40, MAX_SIDE = 30;
 
-function buildSeats() {
+function buildSeats(topCount = DEFAULT_TOP, sideCount = DEFAULT_SIDE) {
   const seats = [];
-  for (let i = 0; i < TOP; i++)
+  for (let i = 0; i < topCount; i++)
     seats.push({ id: `T${i + 1}`, row: 'top', col: i, name: '', status: 'empty' });
-  for (let i = 0; i < SIDE; i++)
+  for (let i = 0; i < sideCount; i++)
     seats.push({ id: `L${i + 1}`, row: 'left', col: i, name: '', status: 'empty' });
-  for (let i = 0; i < SIDE; i++)
+  for (let i = 0; i < sideCount; i++)
     seats.push({ id: `R${i + 1}`, row: 'right', col: i, name: '', status: 'empty' });
   return seats;
+}
+
+// Rebuild preserving existing names/statuses by seat ID
+function rebuildSeats(oldSeats, newTopCount, newSideCount) {
+  const newSeats = buildSeats(newTopCount, newSideCount);
+  return newSeats.map(ns => {
+    const old = oldSeats.find(o => o.id === ns.id);
+    return old ? { ...ns, name: old.name, status: old.status } : ns;
+  });
 }
 
 async function loadSeats() {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/seats?select=*`, { headers: HEADERS });
     const data = await res.json();
-    if (Array.isArray(data) && data.length === 51) {
+    if (Array.isArray(data) && data.length > 0) {
       return data.sort((a, b) => {
         const rowOrder = { top: 0, left: 1, right: 2 };
         if (rowOrder[a.row] !== rowOrder[b.row]) return rowOrder[a.row] - rowOrder[b.row];
         return a.col - b.col;
       });
     }
+    const initial = buildSeats();
     await fetch(`${SUPABASE_URL}/rest/v1/seats`, {
       method: 'POST',
       headers: { ...HEADERS, Prefer: 'ignore-duplicates' },
-      body: JSON.stringify(buildSeats()),
+      body: JSON.stringify(initial),
     });
-    return buildSeats();
+    return initial;
   } catch { return buildSeats(); }
 }
 
@@ -60,12 +71,28 @@ async function saveAllSeats(seats) {
   }
 }
 
-async function clearAllSeats() {
+async function clearAllSeats(topCount = DEFAULT_TOP, sideCount = DEFAULT_SIDE) {
   await fetch(`${SUPABASE_URL}/rest/v1/seats`, { method: 'DELETE', headers: HEADERS });
   await fetch(`${SUPABASE_URL}/rest/v1/seats`, {
     method: 'POST',
     headers: { ...HEADERS, Prefer: 'ignore-duplicates' },
-    body: JSON.stringify(buildSeats()),
+    body: JSON.stringify(buildSeats(topCount, sideCount)),
+  });
+}
+
+// Sync layout change: delete removed seats, upsert new ones
+async function syncLayoutChange(newSeats, oldSeats) {
+  const newIds = new Set(newSeats.map(s => s.id));
+  const removedIds = oldSeats.map(s => s.id).filter(id => !newIds.has(id));
+  // Delete removed seats
+  for (const id of removedIds) {
+    await fetch(`${SUPABASE_URL}/rest/v1/seats?id=eq.${id}`, { method: 'DELETE', headers: HEADERS });
+  }
+  // Upsert all new seats
+  await fetch(`${SUPABASE_URL}/rest/v1/seats`, {
+    method: 'POST',
+    headers: { ...HEADERS, Prefer: 'resolution=merge-duplicates' },
+    body: JSON.stringify(newSeats),
   });
 }
 
@@ -450,6 +477,8 @@ function PrintView({ seats, onClose }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function SeatingPlan() {
   const [seats, setSeats] = useState(buildSeats());
+  const [topCount, setTopCount] = useState(DEFAULT_TOP);
+  const [sideCount, setSideCount] = useState(DEFAULT_SIDE);
   const [sel, setSel] = useState(null);
   const [name, setName] = useState('');
   const [tab, setTab] = useState('plan');
@@ -541,7 +570,14 @@ export default function SeatingPlan() {
   }, [lastSaved]);
 
   useEffect(() => {
-    loadSeats().then(s => { setSeats(s); setLoaded(true); });
+    loadSeats().then(s => {
+      setSeats(s);
+      const tc = s.filter(x => x.row === 'top').length;
+      const sc = s.filter(x => x.row === 'left').length;
+      if (tc > 0) setTopCount(tc);
+      if (sc > 0) setSideCount(sc);
+      setLoaded(true);
+    });
     const poll = setInterval(() => { if (!isSaving.current && !isCleared.current) loadSeats().then(s => setSeats(s)); }, 20000);
     return () => clearInterval(poll);
   }, []);
@@ -587,6 +623,30 @@ export default function SeatingPlan() {
   };
   // ────────────────────────────────────────────────────────────────────────
 
+  // ── Layout resize handlers ───────────────────────────────────────────────
+  const resizeLayout = (newTop, newSide) => {
+    const clampedTop = Math.max(MIN_SEATS, Math.min(MAX_TOP, newTop));
+    const clampedSide = Math.max(MIN_SEATS, Math.min(MAX_SIDE, newSide));
+    setSeats(prev => {
+      pushHistory(prev);
+      const next = rebuildSeats(prev, clampedTop, clampedSide);
+      setSaveStatus('saving'); isSaving.current = true;
+      syncLayoutChange(next, prev).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; });
+      return next;
+    });
+    setTopCount(clampedTop);
+    setSideCount(clampedSide);
+    setSel(null); setName('');
+  };
+
+  const addTopLeft  = () => resizeLayout(topCount + 1, sideCount);
+  const removeTopLeft  = () => resizeLayout(topCount - 1, sideCount);
+  const addTopRight = () => resizeLayout(topCount + 1, sideCount);
+  const removeTopRight = () => resizeLayout(topCount - 1, sideCount);
+  const addSideBottom  = () => resizeLayout(topCount, sideCount + 1);
+  const removeSideBottom = () => resizeLayout(topCount, sideCount - 1);
+  // ────────────────────────────────────────────────────────────────────────
+
   const undo = () => { if (!history.length) return; const prev = history[history.length - 1]; setHistory(h => h.slice(0, -1)); setFuture(f => [seats, ...f].slice(0, 10)); setSeats(prev); setSaveStatus('saving'); isSaving.current = true; saveAllSeats(prev).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
   const redo = () => { if (!future.length) return; const next = future[0]; setFuture(f => f.slice(1)); setHistory(h => [...h, seats].slice(-10)); setSeats(next); setSaveStatus('saving'); isSaving.current = true; saveAllSeats(next).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
   const handleBulkImport = (assignments) => { pushHistory(seats); const updated = seats.map(s => { const m = assignments.find(a => a.id === s.id); return m ? m : s; }); setSeats(updated); setSaveStatus('saving'); isSaving.current = true; saveAllSeats(assignments).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
@@ -618,7 +678,7 @@ export default function SeatingPlan() {
   const assign = () => { if (!sel) return; const seat = getSeat(sel); updateSeat({ ...seat, name, status: name ? (seat.status === 'vip' ? 'vip' : 'assigned') : 'empty' }); };
   const toggleVIP = () => { if (!sel) return; const seat = getSeat(sel); updateSeat({ ...seat, status: seat.status === 'vip' ? (seat.name ? 'assigned' : 'empty') : 'vip' }); };
   const clearSeat = () => { if (!sel) return; updateSeat({ ...getSeat(sel), name: '', status: 'empty' }); setName(''); setSel(null); };
-  const confirmClearAll = () => { setShowConfirm(false); pushHistory(seats); setSeats(buildSeats()); setSel(null); setName(''); setSwapSource(null); setSaveStatus('saving'); isSaving.current = true; isCleared.current = true; clearAllSeats().then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
+  const confirmClearAll = () => { setShowConfirm(false); pushHistory(seats); const fresh = buildSeats(topCount, sideCount); setSeats(fresh); setSel(null); setName(''); setSwapSource(null); setSaveStatus('saving'); isSaving.current = true; isCleared.current = true; clearAllSeats(topCount, sideCount).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
 
   const topSeats   = seats.filter(s => s.row === 'top');
   const leftSeats  = seats.filter(s => s.row === 'left');
@@ -676,7 +736,7 @@ export default function SeatingPlan() {
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <div style={{ fontSize: 11, letterSpacing: 6, color: '#c49a8a', textTransform: 'uppercase', marginBottom: 6 }}>Event Seating System</div>
         <h1 style={{ margin: 0, fontSize: 34, fontWeight: 900, letterSpacing: '-1px', background: 'linear-gradient(90deg,#e07850,#d050a0,#6060e0)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>المنصة الرئيسية</h1>
-        <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 6, letterSpacing: 3 }}>21 TOP · 15 LEFT · 15 RIGHT · {seats.length} SEATS</div>
+        <div style={{ fontSize: 11, color: '#c49a8a', marginTop: 6, letterSpacing: 3 }}>{topCount} TOP · {sideCount} LEFT · {sideCount} RIGHT · {seats.length} SEATS</div>
         <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 11, letterSpacing: 2, fontWeight: 600, color: saveStatus === 'saved' ? '#4caf82' : saveStatus === 'saving' ? '#f0a500' : '#e05050' }}>
             {saveStatus === 'saved' ? '✓ SAVED' : saveStatus === 'saving' ? '● SAVING...' : '✕ SAVE ERROR'}
@@ -739,35 +799,48 @@ export default function SeatingPlan() {
           </div>
 
           <div style={{ display: 'flex', gap: 4, justifyContent: 'center', alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-            {topSeats.map(s => (
-              <div key={s.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                <TopSeat
-                  seat={s}
-                  isSelected={!swapSource && sel === s.id}
-                  isDuplicate={!!dupMap[s.id]}
-                  isSwapSource={swapSource === s.id}
-                  isSwapTarget={!!swapSource && swapSource !== s.id}
-                  swapMode={!!swapSource}
-                  onClick={(e) => select(s.id, e)}
-                />
-                {s.id === 'T11' && (
-                  <div style={{
-                    fontSize: 11, fontWeight: 900, color: '#111',
-                    letterSpacing: 2, textTransform: 'uppercase',
-                    background: '#f5f0ea',
-                    border: '1.5px solid #c0a898',
-                    borderRadius: 6, padding: '3px 8px',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-                  }}>CENTER</div>
-                )}
-              </div>
-            ))}
+
+            {/* ── LEFT +/− of T-row ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6, alignSelf: 'center', marginRight: 4 }}>
+              <button onClick={() => resizeLayout(topCount + 1, sideCount)} disabled={topCount >= MAX_TOP} title="Add seat to left"
+                style={{ width: 28, height: 28, borderRadius: '50%', background: topCount >= MAX_TOP ? '#f0f0f0' : '#e8fff4', border: `1.5px solid ${topCount >= MAX_TOP ? '#ddd' : '#4caf82'}`, color: topCount >= MAX_TOP ? '#bbb' : '#1a6a42', fontWeight: 900, fontSize: 16, cursor: topCount >= MAX_TOP ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+              <button onClick={() => resizeLayout(topCount - 1, sideCount)} disabled={topCount <= MIN_SEATS} title="Remove seat from left"
+                style={{ width: 28, height: 28, borderRadius: '50%', background: topCount <= MIN_SEATS ? '#f0f0f0' : '#fff0f0', border: `1.5px solid ${topCount <= MIN_SEATS ? '#ddd' : '#e07070'}`, color: topCount <= MIN_SEATS ? '#bbb' : '#a02020', fontWeight: 900, fontSize: 16, cursor: topCount <= MIN_SEATS ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+            </div>
+
+            {topSeats.map((s, idx) => {
+              const centerIdx = Math.floor((topCount - 1) / 2);
+              return (
+                <div key={s.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  <TopSeat
+                    seat={s}
+                    isSelected={!swapSource && sel === s.id}
+                    isDuplicate={!!dupMap[s.id]}
+                    isSwapSource={swapSource === s.id}
+                    isSwapTarget={!!swapSource && swapSource !== s.id}
+                    swapMode={!!swapSource}
+                    onClick={(e) => select(s.id, e)}
+                  />
+                  {idx === centerIdx && (
+                    <div style={{ fontSize: 11, fontWeight: 900, color: '#111', letterSpacing: 2, textTransform: 'uppercase', background: '#f5f0ea', border: '1.5px solid #c0a898', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap', boxShadow: '0 1px 4px rgba(0,0,0,0.10)' }}>CENTER</div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* ── RIGHT +/− of T-row ── */}
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6, alignSelf: 'center', marginLeft: 4 }}>
+              <button onClick={() => resizeLayout(topCount + 1, sideCount)} disabled={topCount >= MAX_TOP} title="Add seat to right"
+                style={{ width: 28, height: 28, borderRadius: '50%', background: topCount >= MAX_TOP ? '#f0f0f0' : '#e8fff4', border: `1.5px solid ${topCount >= MAX_TOP ? '#ddd' : '#4caf82'}`, color: topCount >= MAX_TOP ? '#bbb' : '#1a6a42', fontWeight: 900, fontSize: 16, cursor: topCount >= MAX_TOP ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+              <button onClick={() => resizeLayout(topCount - 1, sideCount)} disabled={topCount <= MIN_SEATS} title="Remove seat from right"
+                style={{ width: 28, height: 28, borderRadius: '50%', background: topCount <= MIN_SEATS ? '#f0f0f0' : '#fff0f0', border: `1.5px solid ${topCount <= MIN_SEATS ? '#ddd' : '#e07070'}`, color: topCount <= MIN_SEATS ? '#bbb' : '#a02020', fontWeight: 900, fontSize: 16, cursor: topCount <= MIN_SEATS ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+            </div>
           </div>
 
           <div style={{ height: 20 }} />
 
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+            {/* LEFT column */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {leftSeats.map(s => (
                 <SideSeat
@@ -781,7 +854,16 @@ export default function SeatingPlan() {
                   namePosition="right"
                 />
               ))}
+              {/* Bottom +/- for L */}
+              <div style={{ display: 'flex', gap: 5, justifyContent: 'center', marginTop: 6 }}>
+                <button onClick={() => resizeLayout(topCount, sideCount + 1)} disabled={sideCount >= MAX_SIDE}
+                  style={{ flex: 1, height: 30, borderRadius: 8, background: sideCount >= MAX_SIDE ? '#f0f0f0' : '#e8fff4', border: `1.5px solid ${sideCount >= MAX_SIDE ? '#ddd' : '#4caf82'}`, color: sideCount >= MAX_SIDE ? '#bbb' : '#1a6a42', fontWeight: 800, fontSize: 13, cursor: sideCount >= MAX_SIDE ? 'default' : 'pointer', fontFamily: 'inherit' }}>+ L</button>
+                <button onClick={() => resizeLayout(topCount, sideCount - 1)} disabled={sideCount <= MIN_SEATS}
+                  style={{ flex: 1, height: 30, borderRadius: 8, background: sideCount <= MIN_SEATS ? '#f0f0f0' : '#fff0f0', border: `1.5px solid ${sideCount <= MIN_SEATS ? '#ddd' : '#e07070'}`, color: sideCount <= MIN_SEATS ? '#bbb' : '#a02020', fontWeight: 800, fontSize: 13, cursor: sideCount <= MIN_SEATS ? 'default' : 'pointer', fontFamily: 'inherit' }}>− L</button>
+              </div>
             </div>
+
+            {/* RIGHT column */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               {rightSeats.map(s => (
                 <SideSeat
@@ -795,6 +877,13 @@ export default function SeatingPlan() {
                   namePosition="left"
                 />
               ))}
+              {/* Bottom +/- for R */}
+              <div style={{ display: 'flex', gap: 5, justifyContent: 'center', marginTop: 6 }}>
+                <button onClick={() => resizeLayout(topCount, sideCount + 1)} disabled={sideCount >= MAX_SIDE}
+                  style={{ flex: 1, height: 30, borderRadius: 8, background: sideCount >= MAX_SIDE ? '#f0f0f0' : '#e8fff4', border: `1.5px solid ${sideCount >= MAX_SIDE ? '#ddd' : '#4caf82'}`, color: sideCount >= MAX_SIDE ? '#bbb' : '#1a6a42', fontWeight: 800, fontSize: 13, cursor: sideCount >= MAX_SIDE ? 'default' : 'pointer', fontFamily: 'inherit' }}>+ R</button>
+                <button onClick={() => resizeLayout(topCount, sideCount - 1)} disabled={sideCount <= MIN_SEATS}
+                  style={{ flex: 1, height: 30, borderRadius: 8, background: sideCount <= MIN_SEATS ? '#f0f0f0' : '#fff0f0', border: `1.5px solid ${sideCount <= MIN_SEATS ? '#ddd' : '#e07070'}`, color: sideCount <= MIN_SEATS ? '#bbb' : '#a02020', fontWeight: 800, fontSize: 13, cursor: sideCount <= MIN_SEATS ? 'default' : 'pointer', fontFamily: 'inherit' }}>− R</button>
+              </div>
             </div>
           </div>
 
@@ -828,7 +917,12 @@ export default function SeatingPlan() {
           {tab === 'plan' && (
             <div style={{ background: '#fffaf7', borderRadius: 20, border: '1.5px solid #f0d8cc', padding: 16 }}>
               <div style={{ fontSize: 10, letterSpacing: 3, color: '#c49a8a', marginBottom: 12, fontWeight: 700 }}>LAYOUT INFO</div>
-              {[{ label: 'Top Row', val: 'T1–T21', note: '21 seats' }, { label: 'Left Col', val: 'L1–L15', note: '15 seats' }, { label: 'Right Col', val: 'R1–R15', note: '15 seats' }, { label: 'Total', val: '51 seats', note: '' }].map(r => (
+              {[
+                { label: 'Top Row',   val: `T1–T${topCount}`,   note: `${topCount} seats` },
+                { label: 'Left Col',  val: `L1–L${sideCount}`,  note: `${sideCount} seats` },
+                { label: 'Right Col', val: `R1–R${sideCount}`,  note: `${sideCount} seats` },
+                { label: 'Total',     val: `${seats.length} seats`, note: '' },
+              ].map(r => (
                 <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f5e8e0', fontSize: 12 }}>
                   <span style={{ color: '#c49a8a' }}>{r.label}</span>
                   <span style={{ color: '#e07850', fontWeight: 700 }}>{r.val} <span style={{ color: '#d0b8a8', fontWeight: 400 }}>{r.note}</span></span>
