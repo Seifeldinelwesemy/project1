@@ -32,6 +32,81 @@ function rebuildSeats(oldSeats, newTopCount, newSideCount) {
   });
 }
 
+// Insert a new empty T seat at the LEFT (index 0), shift all existing T seats right: T1→T2, T2→T3...
+function insertTopLeft(oldSeats) {
+  const topSeats = oldSeats.filter(s => s.row === 'top');
+  const newTop = [
+    { id: 'T1', row: 'top', col: 0, name: '', status: 'empty' },
+    ...topSeats.map((s, i) => ({ ...s, id: `T${i + 2}`, col: i + 1 })),
+  ];
+  return [
+    ...newTop,
+    ...oldSeats.filter(s => s.row !== 'top'),
+  ];
+}
+
+// Remove the leftmost T seat (T1), shift remaining left: T2→T1, T3→T2...
+function removeTopLeft(oldSeats) {
+  const topSeats = oldSeats.filter(s => s.row === 'top');
+  if (topSeats.length <= 1) return oldSeats;
+  const newTop = topSeats.slice(1).map((s, i) => ({ ...s, id: `T${i + 1}`, col: i }));
+  return [
+    ...newTop,
+    ...oldSeats.filter(s => s.row !== 'top'),
+  ];
+}
+
+// Append a new empty T seat at the RIGHT end
+function insertTopRight(oldSeats) {
+  const topSeats = oldSeats.filter(s => s.row === 'top');
+  const newSeat = { id: `T${topSeats.length + 1}`, row: 'top', col: topSeats.length, name: '', status: 'empty' };
+  return [
+    ...oldSeats.filter(s => s.row !== 'top'),
+    ...topSeats,
+    newSeat,
+  ].sort((a, b) => {
+    const ro = { top: 0, left: 1, right: 2 };
+    if (ro[a.row] !== ro[b.row]) return ro[a.row] - ro[b.row];
+    return a.col - b.col;
+  });
+}
+
+// Remove the rightmost T seat
+function removeTopRight(oldSeats) {
+  const topSeats = oldSeats.filter(s => s.row === 'top');
+  if (topSeats.length <= 1) return oldSeats;
+  return [
+    ...topSeats.slice(0, -1),
+    ...oldSeats.filter(s => s.row !== 'top'),
+  ];
+}
+
+// Append a seat to the bottom of L and R columns (same count always)
+function insertSideBottom(oldSeats) {
+  const leftSeats  = oldSeats.filter(s => s.row === 'left');
+  const rightSeats = oldSeats.filter(s => s.row === 'right');
+  const n = leftSeats.length;
+  return [
+    ...oldSeats.filter(s => s.row === 'top'),
+    ...leftSeats,
+    { id: `L${n + 1}`, row: 'left',  col: n, name: '', status: 'empty' },
+    ...rightSeats,
+    { id: `R${n + 1}`, row: 'right', col: n, name: '', status: 'empty' },
+  ];
+}
+
+// Remove last seat from L and R columns
+function removeSideBottom(oldSeats) {
+  const leftSeats  = oldSeats.filter(s => s.row === 'left');
+  const rightSeats = oldSeats.filter(s => s.row === 'right');
+  if (leftSeats.length <= 1) return oldSeats;
+  return [
+    ...oldSeats.filter(s => s.row === 'top'),
+    ...leftSeats.slice(0, -1),
+    ...rightSeats.slice(0, -1),
+  ];
+}
+
 async function loadSeats() {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/seats?select=*`, { headers: HEADERS });
@@ -623,28 +698,20 @@ export default function SeatingPlan() {
   };
   // ────────────────────────────────────────────────────────────────────────
 
-  // ── Layout resize handlers ───────────────────────────────────────────────
-  const resizeLayout = (newTop, newSide) => {
-    const clampedTop = Math.max(MIN_SEATS, Math.min(MAX_TOP, newTop));
-    const clampedSide = Math.max(MIN_SEATS, Math.min(MAX_SIDE, newSide));
+  // ── Layout resize handlers (directional) ────────────────────────────────
+  const applyLayout = (transformFn) => {
     setSeats(prev => {
+      if (prev.filter(s => s.row === 'top').length <= MIN_SEATS && transformFn === removeTopLeft) return prev;
       pushHistory(prev);
-      const next = rebuildSeats(prev, clampedTop, clampedSide);
+      const next = transformFn(prev);
+      setTopCount(next.filter(s => s.row === 'top').length);
+      setSideCount(next.filter(s => s.row === 'left').length);
       setSaveStatus('saving'); isSaving.current = true;
       syncLayoutChange(next, prev).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; });
       return next;
     });
-    setTopCount(clampedTop);
-    setSideCount(clampedSide);
     setSel(null); setName('');
   };
-
-  const addTopLeft  = () => resizeLayout(topCount + 1, sideCount);
-  const removeTopLeft  = () => resizeLayout(topCount - 1, sideCount);
-  const addTopRight = () => resizeLayout(topCount + 1, sideCount);
-  const removeTopRight = () => resizeLayout(topCount - 1, sideCount);
-  const addSideBottom  = () => resizeLayout(topCount, sideCount + 1);
-  const removeSideBottom = () => resizeLayout(topCount, sideCount - 1);
   // ────────────────────────────────────────────────────────────────────────
 
   const undo = () => { if (!history.length) return; const prev = history[history.length - 1]; setHistory(h => h.slice(0, -1)); setFuture(f => [seats, ...f].slice(0, 10)); setSeats(prev); setSaveStatus('saving'); isSaving.current = true; saveAllSeats(prev).then(markSaved).catch(() => { setSaveStatus('error'); isSaving.current = false; }); };
@@ -802,9 +869,9 @@ export default function SeatingPlan() {
 
             {/* ── LEFT +/− of T-row ── */}
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6, alignSelf: 'center', marginRight: 4 }}>
-              <button onClick={() => resizeLayout(topCount + 1, sideCount)} disabled={topCount >= MAX_TOP} title="Add seat to left"
+              <button onClick={() => applyLayout(insertTopLeft)} disabled={topCount >= MAX_TOP} title="Add T1 on left (shifts all T seats right)"
                 style={{ width: 28, height: 28, borderRadius: '50%', background: topCount >= MAX_TOP ? '#f0f0f0' : '#e8fff4', border: `1.5px solid ${topCount >= MAX_TOP ? '#ddd' : '#4caf82'}`, color: topCount >= MAX_TOP ? '#bbb' : '#1a6a42', fontWeight: 900, fontSize: 16, cursor: topCount >= MAX_TOP ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-              <button onClick={() => resizeLayout(topCount - 1, sideCount)} disabled={topCount <= MIN_SEATS} title="Remove seat from left"
+              <button onClick={() => applyLayout(removeTopLeft)} disabled={topCount <= MIN_SEATS} title="Remove T1 from left (shifts all T seats left)"
                 style={{ width: 28, height: 28, borderRadius: '50%', background: topCount <= MIN_SEATS ? '#f0f0f0' : '#fff0f0', border: `1.5px solid ${topCount <= MIN_SEATS ? '#ddd' : '#e07070'}`, color: topCount <= MIN_SEATS ? '#bbb' : '#a02020', fontWeight: 900, fontSize: 16, cursor: topCount <= MIN_SEATS ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
             </div>
 
@@ -830,9 +897,9 @@ export default function SeatingPlan() {
 
             {/* ── RIGHT +/− of T-row ── */}
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6, alignSelf: 'center', marginLeft: 4 }}>
-              <button onClick={() => resizeLayout(topCount + 1, sideCount)} disabled={topCount >= MAX_TOP} title="Add seat to right"
+              <button onClick={() => applyLayout(insertTopRight)} disabled={topCount >= MAX_TOP} title="Add seat to right end"
                 style={{ width: 28, height: 28, borderRadius: '50%', background: topCount >= MAX_TOP ? '#f0f0f0' : '#e8fff4', border: `1.5px solid ${topCount >= MAX_TOP ? '#ddd' : '#4caf82'}`, color: topCount >= MAX_TOP ? '#bbb' : '#1a6a42', fontWeight: 900, fontSize: 16, cursor: topCount >= MAX_TOP ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-              <button onClick={() => resizeLayout(topCount - 1, sideCount)} disabled={topCount <= MIN_SEATS} title="Remove seat from right"
+              <button onClick={() => applyLayout(removeTopRight)} disabled={topCount <= MIN_SEATS} title="Remove seat from right end"
                 style={{ width: 28, height: 28, borderRadius: '50%', background: topCount <= MIN_SEATS ? '#f0f0f0' : '#fff0f0', border: `1.5px solid ${topCount <= MIN_SEATS ? '#ddd' : '#e07070'}`, color: topCount <= MIN_SEATS ? '#bbb' : '#a02020', fontWeight: 900, fontSize: 16, cursor: topCount <= MIN_SEATS ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
             </div>
           </div>
@@ -856,9 +923,9 @@ export default function SeatingPlan() {
               ))}
               {/* Bottom +/- for L */}
               <div style={{ display: 'flex', gap: 5, justifyContent: 'center', marginTop: 6 }}>
-                <button onClick={() => resizeLayout(topCount, sideCount + 1)} disabled={sideCount >= MAX_SIDE}
+                <button onClick={() => applyLayout(insertSideBottom)} disabled={sideCount >= MAX_SIDE}
                   style={{ flex: 1, height: 30, borderRadius: 8, background: sideCount >= MAX_SIDE ? '#f0f0f0' : '#e8fff4', border: `1.5px solid ${sideCount >= MAX_SIDE ? '#ddd' : '#4caf82'}`, color: sideCount >= MAX_SIDE ? '#bbb' : '#1a6a42', fontWeight: 800, fontSize: 13, cursor: sideCount >= MAX_SIDE ? 'default' : 'pointer', fontFamily: 'inherit' }}>+ L</button>
-                <button onClick={() => resizeLayout(topCount, sideCount - 1)} disabled={sideCount <= MIN_SEATS}
+                <button onClick={() => applyLayout(removeSideBottom)} disabled={sideCount <= MIN_SEATS}
                   style={{ flex: 1, height: 30, borderRadius: 8, background: sideCount <= MIN_SEATS ? '#f0f0f0' : '#fff0f0', border: `1.5px solid ${sideCount <= MIN_SEATS ? '#ddd' : '#e07070'}`, color: sideCount <= MIN_SEATS ? '#bbb' : '#a02020', fontWeight: 800, fontSize: 13, cursor: sideCount <= MIN_SEATS ? 'default' : 'pointer', fontFamily: 'inherit' }}>− L</button>
               </div>
             </div>
@@ -879,9 +946,9 @@ export default function SeatingPlan() {
               ))}
               {/* Bottom +/- for R */}
               <div style={{ display: 'flex', gap: 5, justifyContent: 'center', marginTop: 6 }}>
-                <button onClick={() => resizeLayout(topCount, sideCount + 1)} disabled={sideCount >= MAX_SIDE}
+                <button onClick={() => applyLayout(insertSideBottom)} disabled={sideCount >= MAX_SIDE}
                   style={{ flex: 1, height: 30, borderRadius: 8, background: sideCount >= MAX_SIDE ? '#f0f0f0' : '#e8fff4', border: `1.5px solid ${sideCount >= MAX_SIDE ? '#ddd' : '#4caf82'}`, color: sideCount >= MAX_SIDE ? '#bbb' : '#1a6a42', fontWeight: 800, fontSize: 13, cursor: sideCount >= MAX_SIDE ? 'default' : 'pointer', fontFamily: 'inherit' }}>+ R</button>
-                <button onClick={() => resizeLayout(topCount, sideCount - 1)} disabled={sideCount <= MIN_SEATS}
+                <button onClick={() => applyLayout(removeSideBottom)} disabled={sideCount <= MIN_SEATS}
                   style={{ flex: 1, height: 30, borderRadius: 8, background: sideCount <= MIN_SEATS ? '#f0f0f0' : '#fff0f0', border: `1.5px solid ${sideCount <= MIN_SEATS ? '#ddd' : '#e07070'}`, color: sideCount <= MIN_SEATS ? '#bbb' : '#a02020', fontWeight: 800, fontSize: 13, cursor: sideCount <= MIN_SEATS ? 'default' : 'pointer', fontFamily: 'inherit' }}>− R</button>
               </div>
             </div>
